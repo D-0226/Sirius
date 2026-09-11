@@ -1,0 +1,1928 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  FC Sirius 戦績マップ (U7 26年度)
+  Revision : 1
+  Updated  : 2026-09-11
+  ============================================================
+-->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FC sirius戦績マップ(U7 26年度)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --paper:#F7F6F2;
+    --panel:#FFFFFF;
+    --ink:#1F2933;
+    --ink-soft:#5A6472;
+    --line:#DDD8CB;
+    --accent:#C1440E;
+    --accent-soft:#F3D9CB;
+    --blue:#2B6CB0;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:var(--sans);
+    color:var(--ink);
+    background:var(--paper);
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    height:100dvh; /* iOS Safari address-bar resize fix */
+    overflow:hidden;
+  }
+  .load-error{
+    padding:24px;
+    font-size:13px;
+    color:var(--accent);
+    line-height:1.6;
+  }
+
+  header{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px 12px;
+    padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+    z-index:20;
+  }
+  header h1{
+    font-size:15px;
+    font-weight:700;
+    letter-spacing:.02em;
+    margin:0;
+  }
+  header .tag{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-soft);
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:2px 7px;
+  }
+  header .count{
+    margin-left:auto;
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .header-toggle{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    font-size:11px;
+    border-radius:4px;
+    padding:3px 8px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .header-toggle:hover{ background:var(--paper); }
+
+  .legend-bar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 18px;
+    padding:8px 20px;
+    background:var(--paper);
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+    z-index:20;
+  }
+  .legend-item{
+    display:flex;
+    align-items:baseline;
+    gap:6px;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    white-space:nowrap;
+  }
+  .legend-item[data-filter]{
+    cursor:pointer;
+    padding:3px 8px;
+    border-radius:99px;
+    border:1px solid transparent;
+    transition:background .12s, border-color .12s;
+  }
+  .legend-item[data-filter]:hover{
+    background:var(--panel);
+    border-color:var(--line);
+  }
+  .legend-item[data-filter].active-filter{
+    background:var(--ink);
+    color:#fff;
+    border-color:var(--ink);
+  }
+  .legend-item b{
+    color:var(--ink);
+    font-weight:700;
+  }
+  .legend-item .lcount{
+    font-family:var(--mono);
+    font-size:10.5px;
+    color:var(--ink-soft);
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:0 5px;
+  }
+
+  .layout{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+
+  /* ---------- sidebar ---------- */
+  /* Mobile-first: map is shown large at top (order 1), the info/tools
+     panel sits below and scrolls independently (order 2). */
+  .map-wrap{
+    order:1;
+    flex:1 1 56%;
+    min-height:0;
+    position:relative;
+    width:100%;
+  }
+  aside{
+    order:2;
+    flex:1 1 44%;
+    min-height:0;
+    width:100%;
+    background:var(--panel);
+    border-top:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+  }
+
+  @media (min-width: 821px){
+    .layout{ flex-direction:row; }
+    aside{
+      order:0;
+      width:360px;
+      flex:0 0 360px;
+      height:auto;
+      border-top:none;
+      border-right:1px solid var(--line);
+    }
+    .map-wrap{ order:1; flex:1 1 auto; }
+  }
+
+  .section{
+    padding:16px 18px;
+    border-bottom:1px solid var(--line);
+  }
+  .section-title{
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 10px 0;
+  }
+  .section-title.collapsible{
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    user-select:none;
+    margin:0;
+    padding-bottom:10px;
+  }
+  .section-title.collapsible .chev{
+    font-size:10px;
+    transition:transform .15s ease;
+  }
+  .collapsible-body{
+    overflow:hidden;
+  }
+  .collapsible-body.collapsed{
+    display:none;
+  }
+
+  /* add point form */
+  .row{ display:flex; gap:8px; margin-bottom:8px; }
+  .row input{ flex:1; min-width:0; }
+  label.field{
+    display:block;
+    font-size:10px;
+    color:var(--ink-soft);
+    margin-bottom:3px;
+    font-family:var(--mono);
+  }
+  input[type=text], input[type=number]{
+    width:100%;
+    padding:7px 8px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    font-size:13px;
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--ink);
+  }
+  input:focus{ outline:2px solid var(--blue); outline-offset:-1px; }
+
+  .btn{
+    appearance:none;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--ink);
+    font-size:12.5px;
+    font-weight:600;
+    padding:8px 12px;
+    border-radius:4px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    white-space:nowrap;
+  }
+  .btn:hover{ background:var(--paper); }
+  .btn:focus-visible{ outline:2px solid var(--blue); outline-offset:1px; }
+  .btn-primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#fff;
+  }
+  .btn-primary:hover{ background:#a83a0c; }
+  .btn-primary.active{
+    background:#8f3309;
+    box-shadow: inset 0 0 0 2px #ffffff55;
+  }
+  .btn-ghost{ background:transparent; border-color:transparent; color:var(--ink-soft); padding:6px 8px;}
+  .btn-ghost:hover{ background:var(--paper); color:var(--ink); }
+  .btn-block{ width:100%; justify-content:center; }
+  .btn-sm{ padding:6px 10px; font-size:11px; min-height:30px; }
+
+  .hint{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-top:6px;
+    line-height:1.5;
+  }
+
+  /* layer switcher */
+  .pillgroup{ display:flex; gap:6px; flex-wrap:wrap; }
+  .pill{
+    font-size:12px;
+    padding:8px 12px;
+    border-radius:99px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    cursor:pointer;
+    color:var(--ink-soft);
+  }
+  .pill.active{
+    background:var(--ink);
+    border-color:var(--ink);
+    color:#fff;
+    font-weight:600;
+  }
+
+  /* points list */
+  .list-wrap{
+    flex:1;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+  }
+  .list-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding:6px 10px calc(14px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling:touch;
+  }
+  .empty{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:12.5px;
+    padding:26px 10px;
+    line-height:1.6;
+  }
+  .list-group-title{
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.06em;
+    color:var(--ink-soft);
+    margin:12px 4px 4px;
+  }
+  .list-group-title:first-child{ margin-top:2px; }
+  .point-card{
+    border:1px solid var(--line);
+    border-radius:6px;
+    margin:6px 2px;
+    background:var(--panel);
+    overflow:hidden;
+  }
+  .point-card.selected{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .point-head{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 10px;
+    cursor:pointer;
+  }
+  .swatch{
+    width:10px;height:10px;border-radius:50%;
+    background:var(--accent);
+    flex-shrink:0;
+  }
+  .point-name{
+    font-size:13px;
+    font-weight:600;
+    flex:1;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .point-coords{
+    font-family:var(--mono);
+    font-size:10.5px;
+    color:var(--ink-soft);
+    padding:0 10px 8px 28px;
+  }
+  .point-actions{
+    display:flex;
+    gap:4px;
+    padding:0 8px 8px 28px;
+  }
+  .point-edit{
+    padding:8px 10px 10px;
+    background:var(--paper);
+    border-top:1px solid var(--line);
+    display:none;
+  }
+  .point-edit.open{ display:block; }
+  .point-edit .row{ margin-bottom:6px; }
+  .point-edit .row:last-child{ margin-bottom:0; margin-top:8px; justify-content:flex-end; }
+
+  .badge{
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--ink-soft);
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:1px 5px;
+    flex-shrink:0;
+  }
+
+  .match-section{
+    margin-top:10px;
+    padding-top:8px;
+    border-top:1px solid var(--line);
+  }
+  .match-section .section-title{ margin-bottom:6px; }
+  .match-list{
+    max-height:150px;
+    overflow-y:auto;
+    margin-bottom:6px;
+  }
+  .match-row{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:11px;
+    padding:4px 2px;
+    border-bottom:1px dashed var(--line);
+  }
+  .match-row:last-child{ border-bottom:none; }
+  .match-row span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .match-row .mscore{ font-family:var(--mono); flex:0 0 auto; }
+  .match-row .mresult{ flex:0 0 auto; font-weight:700; }
+  .match-empty{ font-size:11.5px; color:var(--ink-soft); padding:4px 2px; }
+  select{
+    width:100%;
+    padding:7px 8px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    font-size:13px;
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--ink);
+  }
+
+  /* import/export */
+  textarea{
+    width:100%;
+    min-height:70px;
+    resize:vertical;
+    font-family:var(--mono);
+    font-size:11.5px;
+    padding:8px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  .io-actions{ display:flex; gap:8px; margin-top:8px; }
+  .io-actions .btn{ flex:1; }
+
+  /* ---------- map ---------- */
+  #map{ width:100%; height:100%; background:#e8e6de; min-width:0; }
+
+  .leaflet-popup-content{ font-family:var(--sans); font-size:13px; }
+  .leaflet-popup-content b{ display:block; margin-bottom:2px; }
+  .leaflet-popup-content .pcoord{ font-family:var(--mono); font-size:11px; color:var(--ink-soft); }
+  .leaflet-popup-content .precord{
+    max-height:130px;
+    overflow-y:auto;
+    margin-top:6px;
+  }
+  .leaflet-popup-content .precord-title{ font-weight:700; font-size:11.5px; margin-bottom:2px; }
+  .leaflet-popup-content .precord-row{
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+    font-size:11px;
+    padding:2px 0;
+    border-top:1px solid #eee;
+  }
+  .leaflet-popup-content .precord-row .pmono{ font-family:var(--mono); }
+
+  .click-banner{
+    position:absolute;
+    top:12px; left:50%;
+    transform:translateX(-50%);
+    background:var(--accent);
+    color:#fff;
+    font-size:12.5px;
+    font-weight:600;
+    padding:7px 16px;
+    border-radius:99px;
+    box-shadow:0 2px 8px rgba(0,0,0,.18);
+    z-index:1000;
+    display:none;
+    align-items:center;
+    gap:8px;
+  }
+  .click-banner.show{ display:flex; }
+
+  .map-fullscreen-btn{
+    position:absolute;
+    top:10px;
+    right:10px;
+    z-index:1000;
+    background:rgba(255,255,255,.95);
+    box-shadow:0 1px 4px rgba(0,0,0,.25);
+    font-size:12px;
+  }
+
+  body.aside-collapsed aside{ display:none; }
+
+  .leaflet-tooltip.name-label{
+    display:none;
+    background:rgba(255,255,255,.92);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:1px 6px;
+    font-size:10.5px;
+    font-family:var(--sans);
+    color:var(--ink);
+    box-shadow:0 1px 2px rgba(0,0,0,.15);
+    white-space:nowrap;
+  }
+  .leaflet-tooltip.name-label::before{ display:none; }
+  body.team-labels-visible .leaflet-tooltip.name-label.team-label{ display:block; }
+  body.ground-labels-visible .leaflet-tooltip.name-label.ground-label{ display:block; }
+
+  .map-labels-btn{
+    position:absolute;
+    z-index:1000;
+    background:rgba(255,255,255,.95);
+    box-shadow:0 1px 4px rgba(0,0,0,.25);
+    font-size:12px;
+  }
+  .map-labels-btn.team-labels-btn{ right:10px; top:48px; }
+  .map-labels-btn.ground-visible-btn{ right:10px; top:86px; }
+  .map-labels-btn.ground-labels-btn{ right:10px; top:124px; }
+  .map-labels-btn.active{
+    background:var(--ink);
+    color:#fff;
+  }
+
+  .toast{
+    position:absolute;
+    bottom:16px; left:50%;
+    transform:translateX(-50%);
+    background:var(--ink);
+    color:#fff;
+    font-size:12.5px;
+    padding:8px 16px;
+    border-radius:6px;
+    z-index:1000;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s ease;
+  }
+  .toast.show{ opacity:1; }
+
+  /* scrollbar */
+  .list-scroll::-webkit-scrollbar{ width:8px; }
+  .list-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  /* very narrow phones: trim non-essential header chrome */
+  @media (max-width: 380px){
+    header .tag{ display:none; }
+    header h1{ font-size:14px; }
+  }
+</style>
+</head>
+<body class="aside-collapsed">
+
+<header>
+  <h1>FC sirius戦績マップ(U7 26年度)</h1>
+  <select id="gradeSelect" class="header-toggle" style="cursor:pointer;"></select>
+  <span class="tag">地理院タイル</span>
+  <span class="count" id="countLabel">0 地点</span>
+  <button class="header-toggle" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody">凡例 <span class="chev">▸</span></button>
+</header>
+
+<div class="collapsible-body collapsed" id="legendBody">
+<div class="legend-bar">
+  <span class="legend-item" data-filter="green">🟢 勝率100%（全勝）</span>
+  <span class="legend-item" data-filter="yellow">🟡 勝率60%〜99%</span>
+  <span class="legend-item" data-filter="orange">🟠 勝率30%〜59%</span>
+  <span class="legend-item" data-filter="red">🔴 勝率30%未満</span>
+  <span class="legend-item" data-filter="skull">💀 全敗（勝ちなし・分けなし）</span>
+  <span class="legend-item"><span style="display:inline-block;width:11px;height:11px;background:#1B4B66;border-radius:3px;vertical-align:-1px;"></span> ⚽ グラウンド（試合会場）</span>
+</div>
+</div>
+
+<div class="layout">
+  <aside>
+
+    <div class="section">
+      <div class="section-title collapsible" data-collapse-toggle>地点を追加 <span class="chev">▸</span></div>
+      <div class="collapsible-body collapsed">
+      <div class="row">
+        <div style="flex:1">
+          <label class="field">名称</label>
+          <input type="text" id="inName" placeholder="例）第一グラウンド">
+        </div>
+      </div>
+      <div class="row">
+        <div style="flex:1">
+          <label class="field">緯度 (lat)</label>
+          <input type="number" step="any" id="inLat" placeholder="35.150000">
+        </div>
+        <div style="flex:1">
+          <label class="field">経度 (lng)</label>
+          <input type="number" step="any" id="inLng" placeholder="137.030000">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="btnAddManual">この座標を追加</button>
+      <button class="btn btn-block" id="btnClickMode" style="margin-top:8px;">地図をクリックして追加</button>
+      <div class="hint">クリック追加モード中は、地図上の好きな場所をクリックするとその地点が一覧に追加されます。マーカーはドラッグでも移動できます。</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title collapsible" data-collapse-toggle>背景地図 <span class="chev">▾</span></div>
+      <div class="collapsible-body">
+      <div class="pillgroup" id="layerPills">
+        <button class="pill" data-layer="std">標準地図</button>
+        <button class="pill active" data-layer="pale">淡色地図</button>
+        <button class="pill" data-layer="photo">写真</button>
+        <button class="pill" data-layer="blank">白地図</button>
+      </div>
+      </div>
+    </div>
+
+    <div class="section list-wrap" style="border-bottom:none; padding-bottom:0;">
+      <div class="section-title" id="listSectionTitle">地点一覧（勝率TOP3・敗率TOP3）</div>
+      <div class="list-scroll" id="listScroll">
+        <div class="empty" id="emptyMsg">まだ地点がありません。<br>上のフォーム、または地図クリックで追加してください。</div>
+      </div>
+    </div>
+
+    <div class="section" style="border-bottom:none;">
+      <div class="section-title collapsible" data-collapse-toggle>読み込み / 書き出し <span class="chev">▸</span></div>
+      <div class="collapsible-body collapsed">
+
+      <div class="section-title">戦績データ連携</div>
+      <button class="btn btn-primary btn-block" id="btnReloadSheets">🔄 Google Sheetsから最新戦績を読込</button>
+      <div class="hint">「data」タブの公開CSVを直接読みに行きます。ページを開いたときも自動で取得します。</div>
+
+      <div class="section-title" style="margin-top:16px;">ファイルから読込（Excel / CSV）</div>
+      <input type="file" id="fileImportInput" accept=".xlsx,.xls,.csv" style="width:100%;font-size:12px;margin-bottom:8px;">
+      <div class="hint">拠点用（名称・緯度・経度・メモの列）、戦績用（チーム名・日付・カテゴリ・スコア・結果の列、または元シートの「日付・カテゴリ・自チームスコア・相手チームスコア・勝敗・FC名」列）を自動判別して取り込みます。1つのファイルに複数シートがある場合は、シート名に「data」を含むものを優先して読み込みます。</div>
+
+      <div class="section-title" style="margin-top:16px;">拠点CSVを直接貼り付け</div>
+      <textarea id="ioArea" placeholder="名称,緯度,経度&#10;第一グラウンド,35.1500,137.0300&#10;第二グラウンド,35.1620,137.0450"></textarea>
+      <div class="io-actions">
+        <button class="btn" id="btnImport">CSVを読込</button>
+        <button class="btn" id="btnExportCsv">CSV書出</button>
+        <button class="btn" id="btnExportGeo">GeoJSON書出</button>
+      </div>
+      <div class="hint">1行 = 「名称,緯度,経度」。同名の地点が既にある場合は座標・メモを上書きします。</div>
+
+      <div class="section-title" style="margin-top:16px;">戦績CSVを直接貼り付け</div>
+      <textarea id="matchIoArea" placeholder="チーム名,日付,カテゴリ,スコア,結果&#10;Hikari FC,2026-05-10,U-7,3-1,勝"></textarea>
+      <div class="io-actions">
+        <button class="btn btn-block" id="btnImportMatches">戦績CSVを読込</button>
+      </div>
+      <div class="hint">チーム名は一覧の名称と完全一致させてください。結果は「勝」「分」「敗」のいずれか。地点の詳細（✎）からも1件ずつ追加できます。</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <div class="map-wrap">
+    <button class="btn map-fullscreen-btn" id="btnToggleAside" title="情報パネルの表示/非表示">▤ 情報パネルを表示</button>
+    <button class="btn map-labels-btn team-labels-btn" id="btnToggleTeamLabels" title="チーム名の表示/非表示">🏷️ チーム名を表示</button>
+    <button class="btn map-labels-btn ground-visible-btn active" id="btnToggleGroundsVisible" title="グラウンドの表示/非表示">⚽ グラウンドを表示</button>
+    <button class="btn map-labels-btn ground-labels-btn" id="btnToggleGroundLabels" title="グラウンド名の表示/非表示">⚽ グラウンド名を表示</button>
+    <div class="click-banner" id="clickBanner">📍 地図をクリックして地点を追加中… <button class="btn btn-sm" id="btnStopClick" style="margin-left:4px;">終了</button></div>
+    <div id="map"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+if(typeof L === 'undefined'){
+  document.body.innerHTML = '<div class="load-error">地図ライブラリ(Leaflet)の読み込みに失敗しました。通信環境をご確認のうえ、再読み込みしてください。</div>';
+  throw new Error('Leaflet failed to load from CDN');
+}
+
+/* ---------------- grade filter (学年別表示) ---------------- */
+const GRADE_OPTIONS = ['U-6','U-7','U-8','U-9','U-10','U-11','U-12'];
+const GRADE_LABELS = {
+  'U-6':'園児(年少〜年長)', 'U-7':'1年生', 'U-8':'2年生', 'U-9':'3年生',
+  'U-10':'4年生', 'U-11':'5年生', 'U-12':'6年生',
+};
+const GRADE_STORAGE_KEY = 'fcsirius_grade';
+
+function loadSavedGrade(){
+  try{
+    const g = localStorage.getItem(GRADE_STORAGE_KEY);
+    return GRADE_OPTIONS.includes(g) ? g : 'U-7';
+  }catch(e){ return 'U-7'; }
+}
+function saveGrade(g){
+  try{ localStorage.setItem(GRADE_STORAGE_KEY, g); }catch(e){ /* ignore */ }
+}
+let currentGrade = loadSavedGrade();
+
+function matchesForGrade(matches){
+  return (matches||[]).filter(m => (m.category||'').trim() === currentGrade);
+}
+
+/* ---------------- state ---------------- */
+let points = [];        // {id, name, lat, lng}
+let markers = {};        // id -> leaflet marker
+let nextId = 1;
+let clickModeOn = false;
+let selectedId = null;
+let expandedEdit = new Set();
+const STORAGE_KEY = 'gsi_plotter_points';
+
+/* ---------------- map setup ---------------- */
+const map = L.map('map', { zoomControl: true }).setView([35.15, 137.03], 10); // Aichi default
+
+const tileDefs = {
+  std:   { url: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', maxZoom: 18, attribution: null },
+  pale:  { url: 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', maxZoom: 18, attribution: null },
+  photo: { url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', maxZoom: 18, attribution: null },
+  blank: { url: 'https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png', maxZoom: 18, attribution: null },
+};
+const gsiAttribution = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>（国土地理院）';
+
+function makeTileLayer(key){
+  const def = tileDefs[key];
+  return L.tileLayer(def.url, { maxZoom: def.maxZoom, attribution: def.attribution || gsiAttribution });
+}
+
+let currentTile = makeTileLayer('pale').addTo(map);
+
+/* ---------------- grounds (試合会場) ---------------- */
+// シートの「場所」列に対応する座標。判明分は実測住所ベース、それ以外は概算。
+const GROUND_COORDS = {
+  '木曽川運動場G': [35.3368, 136.7905],
+  'ひかりグランド': [35.2979, 137.0190],
+  '碧南2号地運動広場G': [34.849942, 136.966471],
+  '豊明市大原公園G': [35.045812, 136.985078],
+  '若園運動広場G': [35.015472, 137.091038],
+  '池浦西公園G': [34.966200, 137.073481],
+  'WACTIVA ANJOグランド(人工芝)': [34.971714, 137.092995],
+  'はままつフルーツパーク時之栖G': [34.841850, 137.730888],
+  '中部大学スポーツパーク日進G': [35.1280, 137.0380],
+  'まるはスポーツパークG': [34.860573, 136.898262],
+  '豊田市五ケ丘運動公園G': [35.061123, 137.197635],
+  '尾張旭市旭ケ丘G': [35.229034, 137.040721],
+  '愛知県森林公園運動広場G': [35.231903, 137.054734],
+  '半田ぴよログスポーツパークG': [34.899479, 136.884034],
+  '守山多目的グランド': [35.228050, 137.019066],
+  '日進総合公園スポーツ広場G': [35.147560, 137.071901],
+  '一宮市立小信中島小学校': [35.3100, 136.7500],
+};
+
+let grounds = {};        // name -> {name, lat, lng, matches:[]}
+let groundMarkers = {};  // name -> leaflet marker
+let groundsVisible = true;
+const GROUND_COLOR = '#1B4B66'; // 淡色地図の背景でも視認しやすい濃紺
+
+function groundIcon(){
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:22px;height:22px;border-radius:5px;background:${GROUND_COLOR};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:12px;">⚽</div>`,
+    iconSize: [22,22],
+    iconAnchor: [11,11],
+  });
+}
+
+function groundMemoKey(name){ return 'ground_memo_' + name; }
+function getGroundMemo(name){
+  try{ return localStorage.getItem(groundMemoKey(name)) || ''; }catch(e){ return ''; }
+}
+function setGroundMemo(name, text){
+  try{ localStorage.setItem(groundMemoKey(name), text); return true; }catch(e){ return false; }
+}
+
+function groundPopupHtml(g){
+  const matches = matchesForGrade(g.matches);
+  const rows = matches.slice()
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    .map(m=>`<div class="precord-row">
+        <span>${escapeHtml(m.date||'')}${m.category ? ' '+escapeHtml(m.category) : ''}</span>
+        <span class="pmono">vs ${escapeHtml(m.opponent||'')}</span>
+        <span>${escapeHtml(m.score||'')} ${escapeHtml(m.result||'')}</span>
+      </div>`).join('');
+  const memo = escapeHtml(getGroundMemo(g.name));
+  return `<b>⚽ ${escapeHtml(g.name)}</b>
+    <div class="precord">
+      <div class="precord-title">試合実績 ${matches.length}件（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}）</div>
+      ${rows || '<div style="font-size:11px;color:#5A6472;">記録なし</div>'}
+    </div>
+    <div style="margin-top:8px;">
+      <textarea class="ground-memo-input" data-ground="${escapeHtml(g.name)}" placeholder="メモ（駐車場・アクセスなど）" style="width:100%;min-height:50px;font-size:11px;padding:5px;border:1px solid #DDD8CB;border-radius:4px;box-sizing:border-box;">${memo}</textarea>
+      <button class="btn btn-sm btn-primary" data-act="save-ground-memo" style="margin-top:4px;width:100%;">メモを保存</button>
+    </div>`;
+}
+
+function renderGroundMarker(g){
+  const marker = L.marker([g.lat, g.lng], { icon: groundIcon() });
+  marker.bindPopup(groundPopupHtml(g), { maxWidth: 260 });
+  marker.bindTooltip(g.name, { permanent:true, direction:'top', offset:[0,-12], className:'name-label ground-label' });
+  marker.on('popupopen', (e)=>{
+    const container = e.popup.getElement();
+    const btn = container.querySelector('[data-act="save-ground-memo"]');
+    const ta = container.querySelector('.ground-memo-input');
+    if(btn && ta){
+      btn.addEventListener('click', ()=>{
+        const ok = setGroundMemo(g.name, ta.value);
+        toast(ok ? 'メモを保存しました' : 'メモの保存に失敗しました');
+      });
+    }
+  });
+  if(groundsVisible) marker.addTo(map);
+  groundMarkers[g.name] = marker;
+}
+
+function upsertGroundMatch(placeName, info){
+  const coords = GROUND_COORDS[placeName];
+  if(!coords) return false;
+  if(!grounds[placeName]){
+    grounds[placeName] = { name: placeName, lat: coords[0], lng: coords[1], matches: [] };
+  }
+  const g = grounds[placeName];
+  const key = [info.date, info.opponent, info.score, info.result].join('|');
+  if(g.matches.some(m => [m.date,m.opponent,m.score,m.result].join('|') === key)) return true;
+  g.matches.push(info);
+  return true;
+}
+
+function refreshGroundMarkers(){
+  Object.values(groundMarkers).forEach(m=> map.removeLayer(m));
+  groundMarkers = {};
+  Object.values(grounds).forEach(g=> renderGroundMarker(g));
+}
+
+/* ---------------- keep map sized correctly (fixes blank map on mobile) ---------------- */
+function fixMapSize(){ map.invalidateSize(); }
+window.addEventListener('load', fixMapSize);
+window.addEventListener('resize', fixMapSize);
+window.addEventListener('orientationchange', ()=> setTimeout(fixMapSize, 300));
+if('ResizeObserver' in window){
+  const ro = new ResizeObserver(()=> fixMapSize());
+  ro.observe(document.getElementById('map'));
+  ro.observe(document.querySelector('.map-wrap'));
+}
+setTimeout(fixMapSize, 100);
+setTimeout(fixMapSize, 500);
+setTimeout(fixMapSize, 1500);
+
+/* ---------------- collapsible sections ---------------- */
+document.querySelectorAll('[data-collapse-toggle]').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    const targetId = el.dataset.target;
+    const body = targetId ? document.getElementById(targetId) : el.nextElementSibling;
+    if(!body) return;
+    body.classList.toggle('collapsed');
+    const chev = el.querySelector('.chev');
+    if(chev) chev.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
+    fixMapSize();
+  });
+});
+
+document.getElementById('layerPills').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.pill');
+  if(!btn) return;
+  document.querySelectorAll('#layerPills .pill').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  const key = btn.dataset.layer;
+  map.removeLayer(currentTile);
+  currentTile = makeTileLayer(key).addTo(map);
+});
+
+document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=>{
+  groundsVisible = !groundsVisible;
+  document.getElementById('btnToggleGroundsVisible').classList.toggle('active', groundsVisible);
+  Object.values(groundMarkers).forEach(m=>{
+    if(groundsVisible) m.addTo(map); else map.removeLayer(m);
+  });
+});
+
+document.getElementById('btnToggleAside').addEventListener('click', ()=>{
+  const collapsed = document.body.classList.toggle('aside-collapsed');
+  const btn = document.getElementById('btnToggleAside');
+  btn.textContent = collapsed ? '▤ 情報パネルを表示' : '▤ 情報パネル';
+  fixMapSize();
+});
+
+document.getElementById('btnToggleTeamLabels').addEventListener('click', ()=>{
+  const visible = document.body.classList.toggle('team-labels-visible');
+  document.getElementById('btnToggleTeamLabels').classList.toggle('active', visible);
+});
+
+document.getElementById('btnToggleGroundLabels').addEventListener('click', ()=>{
+  const visible = document.body.classList.toggle('ground-labels-visible');
+  document.getElementById('btnToggleGroundLabels').classList.toggle('active', visible);
+});
+
+const FILTER_LABELS = {
+  green: '勝率100%（全勝）',
+  yellow: '勝率60%〜99%',
+  orange: '勝率30%〜59%',
+  red: '勝率30%未満',
+  skull: '全敗',
+};
+
+document.querySelector('.legend-bar').addEventListener('click', (e)=>{
+  const item = e.target.closest('.legend-item[data-filter]');
+  if(!item) return;
+  const f = item.dataset.filter;
+  activeTeamFilter = (activeTeamFilter === f) ? null : f;
+  document.querySelectorAll('.legend-bar .legend-item[data-filter]').forEach(el=>{
+    el.classList.toggle('active-filter', el.dataset.filter === activeTeamFilter);
+  });
+  applyTeamFilter();
+  toast(activeTeamFilter ? `絞り込み: ${FILTER_LABELS[activeTeamFilter]}` : '絞り込みを解除しました');
+});
+
+/* ---------------- grade select (学年別表示) ---------------- */
+const gradeSelectEl = document.getElementById('gradeSelect');
+gradeSelectEl.innerHTML = GRADE_OPTIONS.map(g=>`<option value="${g}">${GRADE_LABELS[g]}</option>`).join('');
+gradeSelectEl.value = currentGrade;
+
+function refreshAllForGrade(){
+  points.forEach(p=>{
+    const marker = markers[p.id];
+    if(marker){
+      marker.setPopupContent(popupHtml(p));
+      const v = teamVisual(p.matches);
+      marker.setIcon(makeIcon(p.id===selectedId, v.color, v.skull));
+    }
+  });
+  Object.values(grounds).forEach(g=>{
+    const marker = groundMarkers[g.name];
+    if(marker) marker.setPopupContent(groundPopupHtml(g));
+  });
+  renderList();
+}
+
+gradeSelectEl.addEventListener('change', (e)=>{
+  currentGrade = e.target.value;
+  saveGrade(currentGrade);
+  refreshAllForGrade();
+  toast(`表示学年: ${GRADE_LABELS[currentGrade]}`);
+});
+
+/* ---------------- persistence ---------------- */
+async function loadPersisted(){
+  if(!window.storage){ return; }
+  try{
+    const res = await window.storage.get(STORAGE_KEY);
+    if(res && res.value){
+      const saved = JSON.parse(res.value);
+      if(Array.isArray(saved)){
+        points = saved;
+        nextId = points.reduce((m,p)=>Math.max(m,p.id),0) + 1;
+      }
+    }
+  }catch(e){ /* no saved data yet */ }
+}
+let persistFailedNotified = false;
+async function persist(){
+  if(!window.storage){ return; }
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(points));
+  }catch(e){
+    console.error('storage save failed', e);
+    if(!persistFailedNotified){
+      persistFailedNotified = true;
+      toast('自動保存でエラー発生。作業は継続できます。念のためCSV書出で保存してください');
+    }
+  }
+}
+
+/* ---------------- toast ---------------- */
+let toastTimer = null;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> el.classList.remove('show'), 2200);
+}
+
+/* ---------------- accuracy grade -> color (used only for note text, no longer for icon color) ---------------- */
+function extractGrade(note){
+  if(!note) return null;
+  const m = note.match(/精度([A-D])/);
+  return m ? m[1] : null;
+}
+
+/* ---------------- win-rate -> color / skull ---------------- */
+function teamVisual(matches){
+  const s = recordSummary(matches);
+  if(s.total===0) return { color:'#9CA3AF', skull:false, rate:null, ...s };
+  const allLoss = (s.win===0 && s.draw===0 && s.lose===s.total);
+  if(allLoss) return { color:'#1F2933', skull:true, rate:0, ...s };
+  const rate = (s.win / s.total) * 100;
+  let color;
+  if(rate >= 100) color = '#22C55E';       // 緑: 勝率100%
+  else if(rate >= 60) color = '#EAB308';   // 黄: 60-99%
+  else if(rate >= 30) color = '#F97316';   // 橙: 30-59%
+  else color = '#EF4444';                  // 赤: 30%未満
+  return { color, skull:false, rate, ...s };
+}
+
+// 凡例クリックによる絞り込み用: 勝率カテゴリを1語のラベルに分類
+function teamCategory(matches){
+  const v = teamVisual(matches);
+  if(v.rate === null) return null; // 戦績データなし（絞り込み対象外）
+  if(v.skull) return 'skull';
+  if(v.rate >= 100) return 'green';
+  if(v.rate >= 60) return 'yellow';
+  if(v.rate >= 30) return 'orange';
+  return 'red';
+}
+
+let activeTeamFilter = null; // 'green'|'yellow'|'orange'|'red'|'skull'|null
+
+function applyTeamFilter(){
+  points.forEach(p=>{
+    const marker = markers[p.id];
+    if(!marker) return;
+    const cat = teamCategory(p.matches);
+    const show = !activeTeamFilter || cat === activeTeamFilter;
+    const onMap = map.hasLayer(marker);
+    if(show && !onMap) marker.addTo(map);
+    if(!show && onMap) map.removeLayer(marker);
+  });
+}
+
+/* ---------------- marker icon ---------------- */
+function makeIcon(active, color, skull){
+  const ring = active ? '0 0 0 3px #1F2933, 0 1px 4px rgba(0,0,0,.4)' : '0 1px 4px rgba(0,0,0,.4)';
+  if(skull){
+    return L.divIcon({
+      className: '',
+      html: `<div style="width:20px;height:20px;border-radius:50%;background:#1F2933;border:2px solid #fff;box-shadow:${ring};display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;">💀</div>`,
+      iconSize: [20,20],
+      iconAnchor: [10,10],
+    });
+  }
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:${ring};"></div>`,
+    iconSize: [16,16],
+    iconAnchor: [8,8],
+  });
+}
+
+/* ---------------- core operations ---------------- */
+function addPoint(name, lat, lng, {fly=false, note='', matches=[], silent=false, url=''} = {}){
+  lat = Number(lat); lng = Number(lng);
+  if(Number.isNaN(lat) || Number.isNaN(lng)){ toast('緯度・経度が不正です'); return null; }
+  const p = { id: nextId++, name: name && name.trim() ? name.trim() : `地点${nextId-1}`, lat, lng, note: note || '', matches: matches || [], url: url || '' };
+  points.push(p);
+  renderMarker(p);
+  if(!silent){
+    renderList();
+    persist();
+    if(fly) map.flyTo([lat,lng], Math.max(map.getZoom(), 14));
+  }
+  return p;
+}
+
+/* ---------------- match records (戦績) ---------------- */
+function recordSummary(matches){
+  const filtered = matchesForGrade(matches);
+  const s = { win:0, draw:0, lose:0, total: filtered.length };
+  filtered.forEach(m=>{
+    if(m.result==='勝') s.win++;
+    else if(m.result==='分') s.draw++;
+    else if(m.result==='敗') s.lose++;
+  });
+  return s;
+}
+
+function addMatch(pointId, match, {silent=false} = {}){
+  const p = points.find(pp=>pp.id===pointId);
+  if(!p) return null;
+  if(!p.matches) p.matches = [];
+  const full = { id: 'm'+Date.now()+Math.random().toString(36).slice(2,6), date:'', category:'', score:'', result:'', ...match };
+  p.matches.push(full);
+  if(!silent){
+    const marker = markers[pointId];
+    if(marker){
+      marker.setPopupContent(popupHtml(p));
+      const v = teamVisual(p.matches);
+      marker.setIcon(makeIcon(pointId===selectedId, v.color, v.skull));
+    }
+    renderList();
+    persist();
+  }
+  return full;
+}
+
+function removeMatch(pointId, matchId){
+  const p = points.find(pp=>pp.id===pointId);
+  if(!p) return;
+  p.matches = (p.matches||[]).filter(m=>m.id!==matchId);
+  const marker = markers[pointId];
+  if(marker){
+    marker.setPopupContent(popupHtml(p));
+    const v = teamVisual(p.matches);
+    marker.setIcon(makeIcon(pointId===selectedId, v.color, v.skull));
+  }
+  renderList();
+  persist();
+}
+
+function popupHtml(p){
+  const noteLine = p.note ? `<div style="font-size:11.5px;color:#5A6472;margin-top:2px;">${escapeHtml(p.note)}</div>` : '';
+  const matches = matchesForGrade(p.matches);
+  let recordBlock;
+  if(matches.length){
+    const s = recordSummary(matches);
+    const v = teamVisual(matches);
+    const rows = matches.slice()
+      .sort((a,b)=> (b.date||'').localeCompare(a.date||''))
+      .map(m=>`<div class="precord-row">
+          <span>${escapeHtml(m.date||'')}${m.category ? ' ' + escapeHtml(m.category) : ''}</span>
+          <span class="pmono">${escapeHtml(m.score||'')}</span>
+          <span>${escapeHtml(m.result||'')}</span>
+        </div>`).join('');
+    const rateText = v.skull ? '全敗 💀' : `勝率${Math.round(v.rate)}%`;
+    recordBlock = `<div class="precord">
+        <div class="precord-title">戦績（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}）: ${s.win}勝${s.draw}分${s.lose}敗（${rateText}）</div>
+        ${rows}
+      </div>`;
+  } else {
+    recordBlock = `<div class="precord"><div style="font-size:11px;color:#5A6472;">${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}の戦績データなし</div></div>`;
+  }
+  const linkLine = p.url ? `<div style="margin-top:6px;"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" style="font-size:11.5px;color:#2B6CB0;">🔗 チーム紹介ページ</a></div>` : '';
+  return `<b>${escapeHtml(p.name)}</b><span class="pcoord">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span>${noteLine}${recordBlock}${linkLine}`;
+}
+
+function renderMarker(p){
+  const v = teamVisual(p.matches);
+  const marker = L.marker([p.lat, p.lng], { draggable:true, icon: makeIcon(p.id===selectedId, v.color, v.skull) }).addTo(map);
+  marker.bindPopup(popupHtml(p), { maxWidth: 260 });
+  marker.bindTooltip(p.name, { permanent:true, direction:'top', offset:[0,-10], className:'name-label team-label' });
+  marker.on('dragend', ()=>{
+    const ll = marker.getLatLng();
+    p.lat = ll.lat; p.lng = ll.lng;
+    renderList();
+    persist();
+    marker.setPopupContent(popupHtml(p));
+  });
+  marker.on('click', ()=>{ selectPoint(p.id); });
+  markers[p.id] = marker;
+}
+
+function removePoint(id){
+  points = points.filter(p=>p.id!==id);
+  if(markers[id]){ map.removeLayer(markers[id]); delete markers[id]; }
+  if(selectedId===id) selectedId = null;
+  renderList();
+  persist();
+}
+
+function updatePoint(id, {name, lat, lng, note, url}){
+  const p = points.find(p=>p.id===id);
+  if(!p) return;
+  if(name!==undefined) p.name = name.trim() || p.name;
+  if(lat!==undefined && !Number.isNaN(Number(lat))) p.lat = Number(lat);
+  if(lng!==undefined && !Number.isNaN(Number(lng))) p.lng = Number(lng);
+  if(note!==undefined) p.note = note;
+  if(url!==undefined) p.url = url;
+  const marker = markers[id];
+  if(marker){
+    marker.setLatLng([p.lat, p.lng]);
+    marker.setPopupContent(popupHtml(p));
+    marker.setTooltipContent(p.name);
+    const v = teamVisual(p.matches);
+    marker.setIcon(makeIcon(id===selectedId, v.color, v.skull));
+  }
+  renderList();
+  persist();
+}
+
+function selectPoint(id){
+  selectedId = (selectedId===id) ? null : id;
+  Object.entries(markers).forEach(([mid, m])=>{
+    const pt = points.find(pp=>pp.id===Number(mid));
+    const v = teamVisual(pt ? pt.matches : []);
+    m.setIcon(makeIcon(Number(mid)===selectedId, v.color, v.skull));
+  });
+  renderList();
+  if(selectedId){
+    const p = points.find(p=>p.id===selectedId);
+    if(p){ map.flyTo([p.lat,p.lng], Math.max(map.getZoom(),14)); markers[p.id].openPopup(); }
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- Google Sheets (published CSV) live source ---------------- */
+// data タブ（元シート形式：日付・カテゴリ・自チームスコア・相手チームスコア・勝敗・FC名 等）
+const MATCHES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTEA-Qh6qyA6ODIbsqqYmWh7AfABhhpJbpXLi571XVoj86uHFJaWgDYt3vbVKOm9gO3Y9i5Vxjqesub/pub?gid=0&single=true&output=csv';
+// 全学年データ タブ（シンプル形式：team,date,category,score,result）
+const ALL_GRADES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTEA-Qh6qyA6ODIbsqqYmWh7AfABhhpJbpXLi571XVoj86uHFJaWgDYt3vbVKOm9gO3Y9i5Vxjqesub/pub?gid=1256248240&single=true&output=csv';
+
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field = ''; }
+      else if(c === '\n' || c === '\r'){
+        if(c === '\r' && text[i+1] === '\n') i++;
+        row.push(field); field = '';
+        rows.push(row); row = [];
+      } else field += c;
+    }
+  }
+  if(field !== '' || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r => !(r.length===1 && r[0]===''));
+}
+
+async function fetchAndImportCsv(url){
+  const res = await fetch(url, {cache:'no-store'});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const text = await res.text();
+  const rows = parseCSV(text);
+  importRows(rows);
+}
+
+async function loadMatchesFromSheet({silent=false} = {}){
+  let ok = true;
+  if(MATCHES_CSV_URL){
+    try{ await fetchAndImportCsv(MATCHES_CSV_URL); }
+    catch(err){ console.error('data タブの取得に失敗', err); ok = false; }
+  }
+  if(ALL_GRADES_CSV_URL){
+    try{ await fetchAndImportCsv(ALL_GRADES_CSV_URL); }
+    catch(err){ console.error('全学年データ タブの取得に失敗', err); ok = false; }
+  }
+  if(!ok && !silent) toast('Google Sheetsからの読み込みに失敗しました');
+  return ok;
+}
+
+document.getElementById('btnReloadSheets').addEventListener('click', async ()=>{
+  toast('Google Sheetsから読み込み中…');
+  const ok = await loadMatchesFromSheet();
+  if(ok) toast('Google Sheetsの戦績を反映しました');
+});
+
+/* ---------------- smart file import (Excel/CSV, points or matches) ---------------- */
+const RESULT_MAP = { Win:'勝', Lose:'敗', Draw:'分', 勝:'勝', 敗:'敗', 分:'分' };
+
+function normalizeDateStr(s){
+  s = (s||'').trim();
+  let m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return s;
+}
+
+function normalizeForMatch(s){
+  return (s||'').replace(/\s+/g,'').toLowerCase();
+}
+
+// シート側の入力ゆれ・誤字を、地図側の正式名称に読み替えるための対応表
+const TEAM_NAME_ALIASES = {
+  'FC golazo goi一宮': 'FC golazo gol一宮',
+};
+
+function findTeamPoint(name){
+  const clean = (name||'').trim();
+  let p = points.find(pp=>pp.name.trim()===clean);
+  if(!p && TEAM_NAME_ALIASES[clean]){
+    const aliasTarget = TEAM_NAME_ALIASES[clean];
+    p = points.find(pp=>pp.name.trim()===aliasTarget);
+  }
+  if(!p){
+    const norm = normalizeForMatch(clean);
+    p = points.find(pp=>normalizeForMatch(pp.name)===norm);
+  }
+  return p;
+}
+
+function matchKey(teamId, m){
+  return [teamId, m.date||'', m.category||'', m.score||'', m.result||''].join('|');
+}
+
+function refreshMarkerVisual(p){
+  const marker = markers[p.id];
+  if(!marker) return;
+  marker.setPopupContent(popupHtml(p));
+  const v = teamVisual(p.matches);
+  marker.setIcon(makeIcon(p.id===selectedId, v.color, v.skull));
+}
+
+// rows: array of arrays (raw cell values). Auto-detects header row & shape, then imports.
+function importRows(rows){
+  // find a plausible header row within the first 15 rows
+  let headerIdx = -1, header = null;
+  const maxScan = Math.min(rows.length, 15);
+  for(let i=0;i<maxScan;i++){
+    const row = (rows[i]||[]).map(c=>String(c==null?'':c).trim());
+    if(row.includes('日付') && row.includes('FC名')){ headerIdx = i; header = row; break; }
+    if((row.includes('name') || row.includes('名称')) && (row.includes('lat') || row.includes('緯度'))){ headerIdx = i; header = row; break; }
+    if((row.includes('team') || row.includes('チーム名')) && (row.includes('date') || row.includes('日付')) && row.includes('score')){ headerIdx = i; header = row; break; }
+  }
+  if(headerIdx === -1){
+    toast('ファイルの列構成を認識できませんでした');
+    return;
+  }
+  const col = name => header.indexOf(name);
+
+  if(header.includes('日付') && header.includes('FC名')){
+    // 元シート形式: 日付,開始時間,終了時間,場所,引率,TM名,カテゴリ,自チームスコア,相手チームスコア,得失点,勝敗,相手チーム名,備考,FC名
+    const iDate=col('日付'), iCat=col('カテゴリ'), iMy=col('自チームスコア'), iOpp=col('相手チームスコア'), iRes=col('勝敗'), iTeam=col('FC名'), iPlace=col('場所');
+    let added=0, dup=0, noTeam=0; const unmatched = new Set(); const touched = new Set();
+    const unmatchedPlaces = new Set();
+    const existingKeys = new Set();
+    points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m))));
+    for(let i=headerIdx+1;i<rows.length;i++){
+      const r = rows[i]||[];
+      if(r.every(c=> c===undefined || c===null || String(c).trim()==='')) continue;
+      const teamRaw = String(r[iTeam]==null?'':r[iTeam]).trim();
+      if(!teamRaw) continue;
+      const date = normalizeDateStr(String(r[iDate]==null?'':r[iDate]));
+      const category = String(r[iCat]==null?'':r[iCat]).trim();
+      const my = String(r[iMy]==null?'':r[iMy]).trim();
+      const opp = String(r[iOpp]==null?'':r[iOpp]).trim();
+      const score = (my!=='' && opp!=='') ? `${my}-${opp}` : '';
+      const resultRaw = String(r[iRes]==null?'':r[iRes]).trim();
+      const result = RESULT_MAP[resultRaw] || resultRaw;
+
+      if(iPlace>=0){
+        const place = String(r[iPlace]==null?'':r[iPlace]).trim();
+        if(place){
+          const ok = upsertGroundMatch(place, {date, category, opponent: teamRaw, score, result});
+          if(!ok) unmatchedPlaces.add(place);
+        }
+      }
+
+      const p = findTeamPoint(teamRaw);
+      if(!p){ noTeam++; unmatched.add(teamRaw); continue; }
+      const key = matchKey(p.id, {date, category, score, result});
+      if(existingKeys.has(key)){ dup++; continue; }
+      addMatch(p.id, {date, category, score, result}, {silent:true});
+      existingKeys.add(key);
+      touched.add(p.id);
+      added++;
+    }
+    touched.forEach(id=>{ const p = points.find(pp=>pp.id===id); if(p) refreshMarkerVisual(p); });
+    refreshGroundMarkers();
+    renderList();
+    persist();
+    let msg = `戦績 ${added}件登録`;
+    if(dup) msg += `／重複${dup}件スキップ`;
+    if(noTeam) msg += `／該当チーム無し${noTeam}件`;
+    if(unmatchedPlaces.size) msg += `／未登録グラウンド${unmatchedPlaces.size}件`;
+    toast(msg);
+    if(unmatched.size) console.warn('未マッチのチーム名:', [...unmatched]);
+    if(unmatchedPlaces.size) console.warn('座標未登録のグラウンド:', [...unmatchedPlaces]);
+    return;
+  }
+
+  if((header.includes('team') || header.includes('チーム名')) && (header.includes('date') || header.includes('日付'))){
+    // シンプル形式: team/チーム名, date/日付, category/カテゴリ, score/スコア, result/結果
+    const iTeam = col('team')>=0?col('team'):col('チーム名');
+    const iDate = col('date')>=0?col('date'):col('日付');
+    const iCat = col('category')>=0?col('category'):col('カテゴリ');
+    const iScore = col('score')>=0?col('score'):col('スコア');
+    const iRes = col('result')>=0?col('result'):col('結果');
+    let added=0, dup=0, noTeam=0; const unmatched = new Set(); const touched = new Set();
+    const existingKeys = new Set();
+    points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m))));
+    for(let i=headerIdx+1;i<rows.length;i++){
+      const r = rows[i]||[];
+      if(r.every(c=> c===undefined || c===null || String(c).trim()==='')) continue;
+      const teamRaw = String(r[iTeam]==null?'':r[iTeam]).trim();
+      if(!teamRaw) continue;
+      const p = findTeamPoint(teamRaw);
+      if(!p){ noTeam++; unmatched.add(teamRaw); continue; }
+      const date = normalizeDateStr(String(r[iDate]==null?'':r[iDate]));
+      const category = String(r[iCat]==null?'':r[iCat]).trim();
+      const score = String(r[iScore]==null?'':r[iScore]).trim();
+      const resultRaw = String(r[iRes]==null?'':r[iRes]).trim();
+      const result = RESULT_MAP[resultRaw] || resultRaw;
+      const key = matchKey(p.id, {date, category, score, result});
+      if(existingKeys.has(key)){ dup++; continue; }
+      addMatch(p.id, {date, category, score, result}, {silent:true});
+      existingKeys.add(key);
+      touched.add(p.id);
+      added++;
+    }
+    touched.forEach(id=>{ const p = points.find(pp=>pp.id===id); if(p) refreshMarkerVisual(p); });
+    renderList();
+    persist();
+    let msg = `戦績 ${added}件登録`;
+    if(dup) msg += `／重複${dup}件スキップ`;
+    if(noTeam) msg += `／該当チーム無し${noTeam}件`;
+    toast(msg);
+    if(unmatched.size) console.warn('未マッチのチーム名:', [...unmatched]);
+    return;
+  }
+
+  // 拠点形式: name/名称, lat/緯度, lng/経度, note/メモ, url/リンク
+  {
+    const iName = col('name')>=0?col('name'):col('名称');
+    const iLat = col('lat')>=0?col('lat'):col('緯度');
+    const iLng = col('lng')>=0?col('lng'):col('経度');
+    const iNote = col('note')>=0?col('note'):col('メモ');
+    const iUrl = col('url')>=0?col('url'):(col('リンク')>=0?col('リンク'):col('link'));
+    let added=0, updated=0;
+    for(let i=headerIdx+1;i<rows.length;i++){
+      const r = rows[i]||[];
+      if(r.every(c=> c===undefined || c===null || String(c).trim()==='')) continue;
+      const name = String(r[iName]==null?'':r[iName]).trim();
+      if(!name) continue;
+      const lat = Number(r[iLat]), lng = Number(r[iLng]);
+      if(Number.isNaN(lat) || Number.isNaN(lng)) continue;
+      const note = iNote>=0 ? String(r[iNote]==null?'':r[iNote]).trim() : '';
+      const url = iUrl>=0 ? String(r[iUrl]==null?'':r[iUrl]).trim() : '';
+      const existing = points.find(pp=>pp.name.trim()===name);
+      if(existing){
+        existing.lat = lat; existing.lng = lng;
+        if(note) existing.note = note;
+        if(url) existing.url = url;
+        refreshMarkerVisual(existing);
+        const marker = markers[existing.id];
+        if(marker) marker.setLatLng([lat,lng]);
+        updated++;
+      } else {
+        addPoint(name, lat, lng, {note, url, silent:true});
+        added++;
+      }
+    }
+    renderList();
+    persist();
+    toast(`拠点 追加${added}件／更新${updated}件`);
+  }
+}
+
+document.getElementById('fileImportInput').addEventListener('change', (e)=>{
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      const data = new Uint8Array(ev.target.result);
+      const wb = XLSX.read(data, {type:'array', cellDates:false});
+      let sheetName = wb.SheetNames.find(n=> n.toLowerCase().includes('data'));
+      if(!sheetName) sheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+      importRows(rows);
+    }catch(err){
+      console.error('file import failed', err);
+      toast('ファイルの読み込みに失敗しました');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+/* ---------------- list rendering ---------------- */
+function buildPointCard(p){
+  const card = document.createElement('div');
+  card.className = 'point-card' + (p.id===selectedId ? ' selected' : '');
+  const matches = matchesForGrade(p.matches);
+  const s = recordSummary(matches);
+  const isOpen = expandedEdit.has(p.id);
+
+  const matchRowsHtml = matches.length
+    ? matches.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(m=>`
+        <div class="match-row">
+          <span>${escapeHtml(m.date||'')}${m.category ? ' ' + escapeHtml(m.category) : ''}</span>
+          <span class="mscore">${escapeHtml(m.score||'')}</span>
+          <span class="mresult">${escapeHtml(m.result||'')}</span>
+          <button class="btn btn-ghost btn-sm" data-act="delmatch" data-mid="${m.id}" title="削除">✕</button>
+        </div>`).join('')
+    : '<div class="match-empty">戦績はまだ登録されていません</div>';
+
+  const v = teamVisual(matches);
+  const swatchHtml = v.skull
+    ? `<span class="swatch" style="background:#1F2933;display:flex;align-items:center;justify-content:center;font-size:7px;">💀</span>`
+    : `<span class="swatch" style="background:${v.color};"></span>`;
+  const badgeHtml = matches.length
+    ? `<span class="badge">${s.win}勝${s.draw}分${s.lose}敗${v.rate!==null ? ` ${Math.round(v.rate)}%` : ''}</span>`
+    : '';
+
+  card.innerHTML = `
+    <div class="point-head" data-act="select">
+      ${swatchHtml}
+      <span class="point-name">${escapeHtml(p.name)}</span>
+      ${badgeHtml}
+      <button class="btn btn-ghost btn-sm" data-act="edit" title="編集">✎</button>
+      <button class="btn btn-ghost btn-sm" data-act="del" title="削除">✕</button>
+    </div>
+    <div class="point-coords">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</div>
+    ${p.note ? `<div class="point-coords" style="padding-top:0;">${escapeHtml(p.note)}</div>` : ''}
+    <div class="point-edit${isOpen ? ' open' : ''}" data-edit>
+      <div class="row">
+        <input type="text" data-f="name" value="${escapeHtml(p.name)}">
+      </div>
+      <div class="row">
+        <input type="number" step="any" data-f="lat" value="${p.lat}">
+        <input type="number" step="any" data-f="lng" value="${p.lng}">
+      </div>
+      <div class="row">
+        <input type="text" data-f="note" value="${escapeHtml(p.note||'')}" placeholder="所在地・精度メモ">
+      </div>
+      <div class="row">
+        <input type="text" data-f="url" value="${escapeHtml(p.url||'')}" placeholder="チーム紹介ページURL（公式サイト/Instagram等）">
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-sm" data-act="save">保存</button>
+      </div>
+
+      <div class="match-section">
+        <div class="section-title">戦績（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}のみ表示中）</div>
+        <div class="match-list">${matchRowsHtml}</div>
+        <div class="row">
+          <input type="text" data-f="mdate" placeholder="日付 例)2026-05-10">
+          <select data-f="mcat">
+            ${GRADE_OPTIONS.map(g=>`<option value="${g}"${g===currentGrade?' selected':''}>${g}（${GRADE_LABELS[g]}）</option>`).join('')}
+            <option value="その他">その他</option>
+          </select>
+        </div>
+        <div class="row">
+          <input type="text" data-f="mscore" placeholder="スコア 例)3-1">
+          <select data-f="mresult">
+            <option value="勝">勝</option>
+            <option value="分">分</option>
+            <option value="敗">敗</option>
+          </select>
+        </div>
+        <div class="row">
+          <button class="btn btn-sm btn-block" data-act="addmatch">戦績を追加</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  card.querySelector('[data-act="select"]').addEventListener('click', (e)=>{
+    if(e.target.closest('button')) return;
+    selectPoint(p.id);
+  });
+  card.querySelector('[data-act="del"]').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    removePoint(p.id);
+  });
+  card.querySelector('[data-act="edit"]').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    if(expandedEdit.has(p.id)) expandedEdit.delete(p.id); else expandedEdit.add(p.id);
+    renderList();
+  });
+  card.querySelector('[data-act="save"]').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const name = card.querySelector('[data-f="name"]').value;
+    const lat = card.querySelector('[data-f="lat"]').value;
+    const lng = card.querySelector('[data-f="lng"]').value;
+    const note = card.querySelector('[data-f="note"]').value;
+    const url = card.querySelector('[data-f="url"]').value;
+    updatePoint(p.id, {name, lat, lng, note, url});
+    toast('更新しました');
+  });
+  card.querySelectorAll('[data-act="delmatch"]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      removeMatch(p.id, btn.dataset.mid);
+    });
+  });
+  const addMatchBtn = card.querySelector('[data-act="addmatch"]');
+  if(addMatchBtn){
+    addMatchBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const date = card.querySelector('[data-f="mdate"]').value.trim();
+      const category = card.querySelector('[data-f="mcat"]').value;
+      const score = card.querySelector('[data-f="mscore"]').value.trim();
+      const result = card.querySelector('[data-f="mresult"]').value;
+      if(!date && !score){ toast('日付かスコアを入力してください'); return; }
+      expandedEdit.add(p.id);
+      addMatch(p.id, {date, category, score, result});
+      toast('戦績を追加しました');
+    });
+  }
+
+  return card;
+}
+
+function getRankedTeams(){
+  const withData = points
+    .filter(p => matchesForGrade(p.matches).length > 0)
+    .map(p => {
+      const v = teamVisual(p.matches);
+      const s = recordSummary(p.matches);
+      const loseRate = s.total ? (s.lose / s.total) * 100 : 0;
+      return { p, v, s, loseRate };
+    });
+
+  const topWin = [...withData]
+    .sort((a,b)=> b.v.rate - a.v.rate || b.s.win - a.s.win)
+    .slice(0,3)
+    .map(x=>x.p);
+
+  const topWinIds = new Set(topWin.map(p=>p.id));
+
+  const topLose = [...withData]
+    .filter(x=> !topWinIds.has(x.p.id))
+    .sort((a,b)=> b.loseRate - a.loseRate || b.s.lose - a.s.lose)
+    .slice(0,3)
+    .map(x=>x.p);
+
+  return { topWin, topLose };
+}
+
+function renderList(){
+  applyTeamFilter();
+  const wrap = document.getElementById('listScroll');
+  document.getElementById('countLabel').textContent = `${points.length} 地点 ｜ ${GRADE_LABELS[currentGrade]||currentGrade}`;
+  const listTitleEl = document.getElementById('listSectionTitle');
+  if(listTitleEl) listTitleEl.textContent = `地点一覧（${GRADE_LABELS[currentGrade]||currentGrade} 勝率TOP3・敗率TOP3）`;
+  wrap.innerHTML = '';
+  if(points.length===0){
+    wrap.innerHTML = '<div class="empty" id="emptyMsg">まだ地点がありません。<br>上のフォーム、または地図クリックで追加してください。</div>';
+    return;
+  }
+
+  const { topWin, topLose } = getRankedTeams();
+
+  if(topWin.length===0 && topLose.length===0){
+    wrap.innerHTML = '<div class="empty">戦績データのある地点がまだありません。<br>戦績を登録するとここにTOP3が表示されます。</div>';
+    return;
+  }
+
+  if(topWin.length){
+    const h = document.createElement('div');
+    h.className = 'list-group-title';
+    h.textContent = '🏆 勝率 TOP3';
+    wrap.appendChild(h);
+    topWin.forEach(p=> wrap.appendChild(buildPointCard(p)));
+  }
+  if(topLose.length){
+    const h = document.createElement('div');
+    h.className = 'list-group-title';
+    h.textContent = '📉 敗率 TOP3';
+    wrap.appendChild(h);
+    topLose.forEach(p=> wrap.appendChild(buildPointCard(p)));
+  }
+}
+
+/* ---------------- manual add form ---------------- */
+document.getElementById('btnAddManual').addEventListener('click', ()=>{
+  const name = document.getElementById('inName').value;
+  const lat = document.getElementById('inLat').value;
+  const lng = document.getElementById('inLng').value;
+  if(lat==='' || lng===''){ toast('緯度・経度を入力してください'); return; }
+  addPoint(name, lat, lng, {fly:true});
+  document.getElementById('inName').value = '';
+  document.getElementById('inLat').value = '';
+  document.getElementById('inLng').value = '';
+});
+
+/* ---------------- click-to-add mode ---------------- */
+const btnClickMode = document.getElementById('btnClickMode');
+const clickBanner = document.getElementById('clickBanner');
+
+function setClickMode(on){
+  clickModeOn = on;
+  btnClickMode.classList.toggle('active', on);
+  btnClickMode.classList.toggle('btn-primary', on);
+  btnClickMode.textContent = on ? 'クリック追加モード ON' : '地図をクリックして追加';
+  clickBanner.classList.toggle('show', on);
+  map.getContainer().style.cursor = on ? 'crosshair' : '';
+}
+btnClickMode.addEventListener('click', ()=> setClickMode(!clickModeOn));
+document.getElementById('btnStopClick').addEventListener('click', ()=> setClickMode(false));
+
+map.on('click', (e)=>{
+  if(!clickModeOn) return;
+  const p = addPoint('', e.latlng.lat, e.latlng.lng);
+  if(p){
+    selectPoint(p.id);
+    toast('地点を追加しました。名称は一覧の✎から編集できます');
+  }
+});
+
+/* ---------------- import / export ---------------- */
+document.getElementById('btnImport').addEventListener('click', ()=>{
+  const raw = document.getElementById('ioArea').value.trim();
+  if(!raw){ toast('読み込むCSVを貼り付けてください'); return; }
+  const lines = raw.split(/\r?\n/).filter(l=>l.trim());
+  let added = 0;
+  lines.forEach(line=>{
+    const parts = line.split(',').map(s=>s.trim());
+    if(parts.length < 3) return;
+    const [name, lat, lng, note] = parts;
+    if(name.toLowerCase()==='name' || name==='名称') return; // skip header row
+    if(!Number.isNaN(Number(lat)) && !Number.isNaN(Number(lng))){
+      addPoint(name, lat, lng, {note: note || ''});
+      added++;
+    }
+  });
+  if(added>0){
+    toast(`${added} 件読み込みました`);
+    if(points.length){
+      const b = L.latLngBounds(points.map(p=>[p.lat,p.lng]));
+      map.fitBounds(b, {padding:[40,40]});
+    }
+  } else {
+    toast('有効な行が見つかりませんでした');
+  }
+});
+
+document.getElementById('btnImportMatches').addEventListener('click', ()=>{
+  const raw = document.getElementById('matchIoArea').value.trim();
+  if(!raw){ toast('読み込む戦績CSVを貼り付けてください'); return; }
+  const lines = raw.split(/\r?\n/).filter(l=>l.trim());
+  let added = 0, skipped = 0;
+  const touched = new Set();
+  lines.forEach(line=>{
+    const parts = line.split(',').map(s=>s.trim());
+    if(parts.length < 5){ skipped++; return; }
+    const [teamName, date, category, score, result] = parts;
+    if(teamName==='チーム名' || teamName.toLowerCase()==='team') return; // header row
+    const p = points.find(pp=>pp.name===teamName);
+    if(!p){ skipped++; return; }
+    addMatch(p.id, {date, category, score, result}, {silent:true});
+    touched.add(p.id);
+    added++;
+  });
+  touched.forEach(id=>{
+    const p = points.find(pp=>pp.id===id);
+    const marker = markers[id];
+    if(p && marker){
+      marker.setPopupContent(popupHtml(p));
+      const v = teamVisual(p.matches);
+      marker.setIcon(makeIcon(id===selectedId, v.color, v.skull));
+    }
+  });
+  renderList();
+  persist();
+  toast(`${added} 件登録${skipped ? `（${skipped} 件はチーム名不一致等でスキップ）` : ''}`);
+});
+
+function downloadFile(filename, content, mime){
+  const blob = new Blob([content], {type: mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('btnExportCsv').addEventListener('click', ()=>{
+  if(points.length===0){ toast('書き出す地点がありません'); return; }
+  const rows = ['name,lat,lng,note,url'];
+  points.forEach(p=>{
+    const safeName = p.name.replace(/,/g, '、');
+    const safeNote = (p.note||'').replace(/,/g, '、');
+    const safeUrl = (p.url||'').replace(/,/g, '');
+    rows.push(`${safeName},${p.lat},${p.lng},${safeNote},${safeUrl}`);
+  });
+  downloadFile('points.csv', rows.join('\n'), 'text/csv');
+  toast('CSVを書き出しました');
+});
+
+document.getElementById('btnExportGeo').addEventListener('click', ()=>{
+  if(points.length===0){ toast('書き出す地点がありません'); return; }
+  const geojson = {
+    type: 'FeatureCollection',
+    features: points.map(p=>({
+      type: 'Feature',
+      properties: { name: p.name },
+      geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
+    }))
+  };
+  downloadFile('points.geojson', JSON.stringify(geojson, null, 2), 'application/geo+json');
+  toast('GeoJSONを書き出しました');
+});
+
+/* ---------------- seed data (initial team list) ---------------- */
+// No.18 REPLO は緯度・経度が未確定のため未収録（所在地: 愛知県 / 精度D 要確認）
+const SEED_DATA = [
+  ['FC golazo gol一宮', 35.3039, 136.8016, '一宮市 ｜ 精度C ｜ 市代表点', 'https://www.instagram.com/soccer_g_g_i/'],
+  ['Hikari FC', 35.2979, 137.0190, '春日井市坂下町6-782-10 ｜ 精度A ｜ ◎', 'https://instagram.com/hikarifc_official'],
+  ['HAPPINESS', 34.8940, 136.9540, '半田市大池町4-59-1 ｜ 精度A ｜ ◎', 'https://www.happiness-soccer.net/'],
+  ['FC Toyotake', 35.0834, 137.1563, '豊田市 ｜ 精度D ｜ 市代表点', 'https://fctoyoake.jp/'],
+  ['安城北部FC', 34.9587, 137.0800, '安城市 ｜ 精度B ｜ 市代表点', 'https://anjo-hokubu-fc.main.jp/'],
+  ['FC SAMURAI', 34.9547, 137.1740, '岡崎市 ｜ 精度C ｜ 市代表点', 'https://fcsamurai.net/'],
+  ['FCヴェルダン', 34.9547, 137.1740, '岡崎市・幸田町周辺 ｜ 精度B ｜ 市代表点', 'https://fcverdao.amebaownd.com/'],
+  ['小坂井FC', 34.8141, 137.3192, '豊川市為当町椎木318 ｜ 精度A/B ｜ ◎', 'https://www.kozakai-fc.jp/'],
+  ['アレグリード', 34.9720, 137.0090, '刈谷市小垣江町池上28 ｜ 精度A ｜ ◎', 'https://www.instagram.com/alegreedsoccerschool/'],
+  ['刈谷トラヴェッソSC', 34.9893, 137.0023, '刈谷市 ｜ 精度B ｜ 市代表点', 'https://travesso.jimdofree.com/'],
+  ['FC SIRIUS', 35.1320, 137.0390, '日進市周辺 ｜ 精度C ｜ 市代表点', 'https://www.instagram.com/fc.sirius_/'],
+  ['SAGARA FC', 34.7400, 138.2250, '牧之原市 ｜ 精度C ｜ 市代表点', 'https://www.instagram.com/sagarafc_/'],
+  ['聖隷JFC', 34.7108, 137.7261, '浜松市 ｜ 精度C ｜ 市代表点', 'https://www.instagram.com/seirei_junior_football_club/'],
+  ['キューズFC', 34.7108, 137.7261, '浜松市 ｜ 精度C ｜ 市代表点', 'https://9290.jp/kyusfc-hamamatsu/'],
+  ['テンマSC', 34.7108, 137.7261, '静岡県西部 ｜ 精度D ｜ 参考点', 'https://www.just.st/index.php?in=307941&pan=top'],
+  ['駿東FC', 35.1385, 138.8940, '長泉町 ｜ 精度C ｜ 町代表点', 'https://fc-nagaizumi.com/'],
+  ['81FC刈谷', 34.9893, 137.0023, '刈谷市 ｜ 精度B ｜ 市代表点', 'https://www.instagram.com/81fckariya_jr_official/'],
+  ['シルフィードFC', 35.1260, 136.9750, '名古屋市天白区 ｜ 精度B ｜ 区代表点', 'http://www.sylphid-fc.com/'],
+  ['デラサル', 35.2250, 136.9320, '名古屋市北区苗田町4 ｜ 精度A ｜ ◎', 'https://delasal.com/'],
+  ['旭FC', 34.9960, 136.8640, '知多市 ｜ 精度C ｜ 市代表点', 'https://www.chitashi-asahi-fc.com/'],
+  ['Cグロッソ知多SC', 34.9960, 136.8640, '知多地区 ｜ 精度C ｜ 地域代表点', 'https://c-grosso.com/'],
+  ['MFC.VOICE', 35.0240, 136.9020, '知多半島・東海市等 ｜ 精度B ｜ 活動地域代表点', 'https://mfcvoice.com/'],
+  ['FC ALONZA', 35.0834, 137.1563, '豊田市 ｜ 精度C ｜ 市代表点', 'https://www.instagram.com/fc_alonza/'],
+  ['大山田SSS', 35.0620, 136.6830, '桑名市 ｜ 精度C ｜ 市代表点', 'https://www.instagram.com/ohyamadasss/'],
+  ['碧南FC', 34.8840, 136.9930, '碧南市 ｜ 精度C ｜ 市代表点', 'https://hekinanfc.net/'],
+  ['八事FC', 35.1260, 136.9750, '名古屋市天白区 ｜ 精度C ｜ 区代表点', 'https://www.instagram.com/yagoto_fc/'],
+  ['FCホッツ', 35.1240, 136.9710, '名古屋市天白区中平2-1105 ｜ 精度A ｜ ◎', 'https://www.fchotts.com/'],
+  ['FCベルテックス', 35.5520, 137.8780, '高森町上市田423-3 ｜ 精度A ｜ ◎', 'https://fcvertex2021.studio.site/'],
+  ['ネクサスNAGOYA', 35.1815, 136.9066, '名古屋市 ｜ 精度D ｜ 市代表点', 'https://www.instagram.com/fc_nexusnagoya/'],
+  ['つつじが丘FC', 34.9960, 136.8640, '知多地区 ｜ 精度C ｜ 地域代表点', 'https://tsutsujifc.jimdofree.com/'],
+  ['CHUKYO JFC', 35.0240, 136.9020, '東海市・大府市周辺 ｜ 精度B ｜ 市代表点', 'https://www.chukyojfc.com/'],
+  ['瀬戸FC', 35.2230, 137.0840, '瀬戸市 ｜ 精度D ｜ 市代表点', 'http://www.seto-fc.jp/club/'],
+  ['VIDA FC', 35.1815, 136.9066, '名古屋市 ｜ 精度B ｜ 市代表点', 'https://nagoya-vidafc.com/'],
+  ['岡崎西SSS', 34.9547, 137.1740, '岡崎市 ｜ 精度D ｜ 市代表点', 'https://www.instagram.com/okawest_1971/'],
+  ['尾西FC', 35.3039, 136.8016, '一宮市 ｜ 精度C ｜ 市代表点', 'https://www.instagram.com/bisai.fc/'],
+  ['サンリッチAMARO', 35.2070, 136.9770, '名古屋市守山区 ｜ 精度D ｜ 区代表点', 'https://sunrich-amaro.studio.site/'],
+  ['大森FC', 35.2070, 136.9770, '名古屋市守山区 ｜ 精度C ｜ 区代表点', ''],
+  ['ゼラス安城FC', 34.9587, 137.0800, '安城市 ｜ 精度C ｜ 市代表点', 'https://zealous-anjo.jimdofree.com/'],
+  ['岐阜K-VAMOS', 35.4230, 136.7610, '岐阜県 ｜ 精度D ｜ 県代表点', 'https://www.instagram.com/gifu_k_vamos/'],
+  ['豊田AFC', 35.0834, 137.1563, '豊田市 ｜ 精度D ｜ 市代表点', 'https://toyotaafc.com/'],
+  ['REPLO', 34.8674, 138.2575, '静岡県藤枝市 ｜ 精度D ｜ 市代表点', 'https://www.instagram.com/replo.2023/'],
+  ['東海スポーツ', 35.1550, 136.9850, '名古屋市千種区・名東区・緑区 ｜ 精度C ｜ 拠点区代表点', 'https://tokaisports.jp/'],
+  ['Nagoya SS', 35.1450, 136.9350, '名古屋市（昭和区・瑞穂区・千種区・南区・中川区・緑区） ｜ 精度C ｜ 拠点区代表点', 'https://nagoyass.jp/'],
+  ['一宮FC', 35.3038, 136.8017, '愛知県一宮市文京1-3 ｜ 精度B ｜ 事務局住所', ''],
+  ['Partigiano FC', 35.3038, 136.8017, '愛知県一宮市 ｜ 精度C ｜ 市代表点', 'https://partifc.com/'],
+  ['ISS FC', 35.4227, 136.7606, '岐阜県岐阜市 ｜ 精度C ｜ 市代表点', 'https://issfc.jp/'],
+  ['Citta Solare', 34.8926, 136.9323, '愛知県半田市 ｜ 精度C ｜ 市代表点', 'https://citta-solare.com/'],
+  ['浜松和田JFC', 34.7108, 137.7261, '静岡県浜松市 ｜ 精度C ｜ 市代表点', ''],
+  ['レゾンFC', 34.7108, 137.7261, '静岡県浜松市天竜東地域 ｜ 精度C ｜ 市代表点', ''],
+  ['レッドスターチ', 35.1200, 136.8800, '名古屋市港区・中川区・熱田区 ｜ 精度C ｜ 拠点区代表点', 'https://red-starch.com/'],
+  ['アクアJFC', 35.1710, 136.8760, '名古屋市中村区（他 春日井・愛西等に拠点） ｜ 精度C ｜ 拠点区代表点', 'https://www.aquasc.co.jp/fc/jfc.html'],
+  ['FCパラヴェンセル', 34.7108, 137.7261, '静岡県浜松市 ｜ 精度C ｜ 市代表点', 'https://www.instagram.com/fcparavencer/'],
+];
+
+/* ---------------- seed data (match records, 戦績.csv より) ---------------- */
+// REPLO 戦(2026-06-06 U-7 0-3 敗)は座標未確定のREPLO地点が存在しないため未収録
+const SEED_MATCHES = [
+  ['FC golazo gol一宮', '2026-04-12', 'U-8', '13-1', '勝'],
+  ['FC golazo gol一宮', '2026-04-12', 'U-7', '7-2', '勝'],
+  ['Hikari FC', '2026-04-18', 'U-6', '0-17', '敗'],
+  ['Hikari FC', '2026-04-18', 'U-7', '1-7', '敗'],
+  ['HAPPINESS', '2026-04-29', 'U-7', '33-0', '勝'],
+  ['HAPPINESS', '2026-04-29', 'U-8', '8-1', '勝'],
+  ['FC Toyotake', '2026-05-02', 'U-7', '29-0', '勝'],
+  ['FC Toyotake', '2026-05-02', 'U-8', '33-1', '勝'],
+  ['安城北部FC', '2026-05-03', 'U-8', '2-0', '勝'],
+  ['FC SAMURAI', '2026-05-03', 'U-8', '9-0', '勝'],
+  ['安城北部FC', '2026-05-03', 'U-8', '0-2', '敗'],
+  ['FCヴェルダン', '2026-05-17', 'U-7', '20-4', '勝'],
+  ['小坂井FC', '2026-05-31', 'U-7', '3-1', '勝'],
+  ['アレグリード', '2026-05-31', 'U-7', '1-2', '敗'],
+  ['刈谷トラヴェッソSC', '2026-05-31', 'U-7', '9-0', '勝'],
+  ['アレグリード', '2026-05-31', 'U-7', '5-1', '勝'],
+  ['FC SIRIUS', '2026-05-31', 'U-7', '0-1', '敗'],
+  ['刈谷トラヴェッソSC', '2026-05-31', 'U-7', '1-0', '勝'],
+  ['アレグリード', '2026-05-31', 'U-7', '2-1', '勝'],
+  ['小坂井FC', '2026-05-31', 'U-7', '6-0', '勝'],
+  ['アレグリード', '2026-05-31', 'U-7', '0-1', '敗'],
+  ['FC SIRIUS', '2026-05-31', 'U-7', '1-0', '勝'],
+  ['SAGARA FC', '2026-06-06', 'U-7', '8-0', '勝'],
+  ['聖隷JFC', '2026-06-06', 'U-7', '4-0', '勝'],
+  ['キューズFC', '2026-06-06', 'U-7', '0-2', '敗'],
+  ['テンマSC', '2026-06-06', 'U-7', '1-1', '分'],
+  ['駿東FC', '2026-06-06', 'U-7', '0-1', '敗'],
+  ['81FC刈谷', '2026-06-06', 'U-7', '0-1', '敗'],
+  ['聖隷JFC', '2026-06-06', 'U-7', '5-1', '勝'],
+  ['SAGARA FC', '2026-06-06', 'U-7', '1-0', '勝'],
+  ['駿東FC', '2026-06-06', 'U-7', '0-1', '敗'],
+  ['シルフィードFC', '2026-06-07', 'U-8', '1-1', '分'],
+  ['デラサル', '2026-06-07', 'U-8', '1-2', '敗'],
+  ['シルフィードFC', '2026-06-07', 'U-8', '3-7', '敗'],
+  ['シルフィードFC', '2026-06-07', 'U-8', '6-2', '勝'],
+  ['旭FC', '2026-06-13', 'U-7', '10-0', '勝'],
+  ['Cグロッソ知多SC', '2026-06-13', 'U-7', '7-0', '勝'],
+  ['安城北部FC', '2026-06-13', 'U-7', '12-1', '勝'],
+  ['MFC.VOICE', '2026-06-13', 'U-7', '1-2', '敗'],
+  ['MFC.VOICE', '2026-07-04', 'U-7', '6-0', '勝'],
+  ['FC ALONZA', '2026-07-04', 'U-7', '3-1', '勝'],
+  ['デラサル', '2026-07-04', 'U-7', '6-1', '勝'],
+  ['大山田SSS', '2026-07-04', 'U-7', '10-0', '勝'],
+  ['碧南FC', '2026-07-11', 'U-7', '5-1', '勝'],
+  ['八事FC', '2026-07-11', 'U-7', '1-2', '敗'],
+  ['FCホッツ', '2026-07-11', 'U-7', '2-0', '勝'],
+  ['FCベルテックス', '2026-07-12', 'U-7', '3-0', '勝'],
+  ['ネクサスNAGOYA', '2026-07-12', 'U-7', '2-0', '勝'],
+  ['つつじが丘FC', '2026-07-12', 'U-7', '1-1', '分'],
+  ['CHUKYO JFC', '2026-07-12', 'U-7', '2-1', '勝'],
+  ['八事FC', '2026-07-12', 'U-7', '0-1', '敗'],
+  ['瀬戸FC', '2026-07-26', 'U-7', '4-0', '勝'],
+  ['VIDA FC', '2026-07-26', 'U-7', '2-0', '勝'],
+  ['岡崎西SSS', '2026-07-26', 'U-7', '0-1', '敗'],
+  ['尾西FC', '2026-07-26', 'U-7', '2-0', '勝'],
+  ['岡崎西SSS', '2026-08-01', 'U-7', '3-3', '分'],
+  ['サンリッチAMARO', '2026-08-01', 'U-7', '5-3', '勝'],
+  ['サンリッチAMARO', '2026-08-01', 'U-7', '15-0', '勝'],
+  ['FCベルテックス', '2026-08-01', 'U-7', '8-1', '勝'],
+  ['大森FC', '2026-08-01', 'U-8', '3-2', '勝'],
+  ['ゼラス安城FC', '2026-08-01', 'U-8', '2-7', '敗'],
+  ['サンリッチAMARO', '2026-08-01', 'U-8', '0-12', '敗'],
+  ['岐阜K-VAMOS', '2026-08-01', 'U-8', '12-0', '勝'],
+  ['豊田AFC', '2026-08-01', 'U-8', '2-7', '敗'],
+];
+
+/* ---------------- init ---------------- */
+(async function init(){
+  await loadPersisted();
+  if(points.length===0){
+    SEED_DATA.forEach(([name,lat,lng,note,url])=> addPoint(name, lat, lng, {note, url}));
+  } else {
+    points.forEach(renderMarker);
+  }
+
+  // 戦績は Google Sheets(data タブ) をまず取りに行く。失敗時のみ埋め込みの
+  // スナップショットデータ(SEED_MATCHES)で最低限の表示を確保する。
+  const liveOk = await loadMatchesFromSheet({silent:true});
+  if(!liveOk && points.every(p=>(p.matches||[]).length===0)){
+    SEED_MATCHES.forEach(([team,date,category,score,result])=>{
+      const p = points.find(pp=>pp.name===team);
+      if(p) addMatch(p.id, {date, category, score, result}, {silent:true});
+    });
+    points.forEach(p=>{
+      const marker = markers[p.id];
+      if(marker){
+        marker.setPopupContent(popupHtml(p));
+        const v = teamVisual(p.matches);
+        marker.setIcon(makeIcon(p.id===selectedId, v.color, v.skull));
+      }
+    });
+  }
+  persist();
+  renderList();
+  fixMapSize();
+  if(points.length){
+    const b = L.latLngBounds(points.map(p=>[p.lat,p.lng]));
+    map.fitBounds(b, {padding:[40,40]});
+  }
+  setTimeout(fixMapSize, 200);
+})();
+</script>
+</body>
+</html>
