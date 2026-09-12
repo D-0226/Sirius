@@ -10,7 +10,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FC sirius戦績マップ(U7 26年度)</title>
+<title>FC sirius戦績マップ（非公式）</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -141,42 +141,14 @@
   .layout{
     flex:1;
     display:flex;
-    flex-direction:column;
     min-height:0;
   }
 
-  /* ---------- sidebar ---------- */
-  /* Mobile-first: map is shown large at top (order 1), the info/tools
-     panel sits below and scrolls independently (order 2). */
   .map-wrap{
-    order:1;
-    flex:1 1 56%;
+    flex:1;
     min-height:0;
     position:relative;
     width:100%;
-  }
-  aside{
-    order:2;
-    flex:1 1 44%;
-    min-height:0;
-    width:100%;
-    background:var(--panel);
-    border-top:1px solid var(--line);
-    display:flex;
-    flex-direction:column;
-  }
-
-  @media (min-width: 821px){
-    .layout{ flex-direction:row; }
-    aside{
-      order:0;
-      width:360px;
-      flex:0 0 360px;
-      height:auto;
-      border-top:none;
-      border-right:1px solid var(--line);
-    }
-    .map-wrap{ order:1; flex:1 1 auto; }
   }
 
   .section{
@@ -516,8 +488,6 @@
     color:#fff;
   }
 
-  body.aside-collapsed aside{ display:none; }
-
   .leaflet-tooltip.name-label{
     display:none;
     background:rgba(255,255,255,.92);
@@ -566,10 +536,10 @@
   }
 </style>
 </head>
-<body class="aside-collapsed">
+<body>
 
 <header>
-  <h1>FC sirius戦績マップ(U7 26年度)</h1>
+  <h1>FC sirius戦績マップ（非公式）</h1>
   <select id="gradeSelect" class="header-toggle" style="cursor:pointer;"></select>
   <span class="tag">地理院タイル</span>
   <span class="count" id="countLabel">0 地点</span>
@@ -588,92 +558,15 @@
 </div>
 
 <div class="layout">
-  <aside>
-
-    <div class="section">
-      <div class="section-title collapsible" data-collapse-toggle>地点を追加 <span class="chev">▸</span></div>
-      <div class="collapsible-body collapsed">
-      <div class="row">
-        <div style="flex:1">
-          <label class="field">名称</label>
-          <input type="text" id="inName" placeholder="例）第一グラウンド">
-        </div>
-      </div>
-      <div class="row">
-        <div style="flex:1">
-          <label class="field">緯度 (lat)</label>
-          <input type="number" step="any" id="inLat" placeholder="35.150000">
-        </div>
-        <div style="flex:1">
-          <label class="field">経度 (lng)</label>
-          <input type="number" step="any" id="inLng" placeholder="137.030000">
-        </div>
-      </div>
-      <button class="btn btn-primary btn-block" id="btnAddManual">この座標を追加</button>
-      <button class="btn btn-block" id="btnClickMode" style="margin-top:8px;">地図をクリックして追加</button>
-      <div class="hint">クリック追加モード中は、地図上の好きな場所をクリックするとその地点が一覧に追加されます。マーカーはドラッグでも移動できます。</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title collapsible" data-collapse-toggle>背景地図 <span class="chev">▾</span></div>
-      <div class="collapsible-body">
-      <div class="pillgroup" id="layerPills">
-        <button class="pill" data-layer="std">標準地図</button>
-        <button class="pill active" data-layer="pale">淡色地図</button>
-        <button class="pill" data-layer="photo">写真</button>
-        <button class="pill" data-layer="blank">白地図</button>
-      </div>
-      </div>
-    </div>
-
-    <div class="section list-wrap" style="border-bottom:none; padding-bottom:0;">
-      <div class="section-title" id="listSectionTitle">地点一覧（勝率TOP3・敗率TOP3）</div>
-      <div class="list-scroll" id="listScroll">
-        <div class="empty" id="emptyMsg">まだ地点がありません。<br>上のフォーム、または地図クリックで追加してください。</div>
-      </div>
-    </div>
-
-    <div class="section" style="border-bottom:none;">
-      <div class="section-title collapsible" data-collapse-toggle>読み込み / 書き出し <span class="chev">▸</span></div>
-      <div class="collapsible-body collapsed">
-
-      <div class="section-title">戦績データ連携</div>
-      <button class="btn btn-primary btn-block" id="btnReloadSheets">🔄 Google Sheetsから最新戦績を読込</button>
-      <div class="hint">「data」タブの公開CSVを直接読みに行きます。ページを開いたときも自動で取得します。</div>
-
-      <div class="section-title" style="margin-top:16px;">ファイルから読込（Excel / CSV）</div>
-      <input type="file" id="fileImportInput" accept=".xlsx,.xls,.csv" style="width:100%;font-size:12px;margin-bottom:8px;">
-      <div class="hint">拠点用（名称・緯度・経度・メモの列）、戦績用（チーム名・日付・カテゴリ・スコア・結果の列、または元シートの「日付・カテゴリ・自チームスコア・相手チームスコア・勝敗・FC名」列）を自動判別して取り込みます。1つのファイルに複数シートがある場合は、シート名に「data」を含むものを優先して読み込みます。</div>
-
-      <div class="section-title" style="margin-top:16px;">拠点CSVを直接貼り付け</div>
-      <textarea id="ioArea" placeholder="名称,緯度,経度&#10;第一グラウンド,35.1500,137.0300&#10;第二グラウンド,35.1620,137.0450"></textarea>
-      <div class="io-actions">
-        <button class="btn" id="btnImport">CSVを読込</button>
-        <button class="btn" id="btnExportCsv">CSV書出</button>
-        <button class="btn" id="btnExportGeo">GeoJSON書出</button>
-      </div>
-      <div class="hint">1行 = 「名称,緯度,経度」。同名の地点が既にある場合は座標・メモを上書きします。</div>
-
-      <div class="section-title" style="margin-top:16px;">戦績CSVを直接貼り付け</div>
-      <textarea id="matchIoArea" placeholder="チーム名,日付,カテゴリ,スコア,結果&#10;Hikari FC,2026-05-10,U-7,3-1,勝"></textarea>
-      <div class="io-actions">
-        <button class="btn btn-block" id="btnImportMatches">戦績CSVを読込</button>
-      </div>
-      <div class="hint">チーム名は一覧の名称と完全一致させてください。結果は「勝」「分」「敗」のいずれか。地点の詳細（✎）からも1件ずつ追加できます。</div>
-      </div>
-    </div>
-
-  </aside>
+  
 
   <div class="map-wrap">
     <div class="map-controls">
-      <button class="map-ctrl-btn" id="btnToggleAside" title="情報パネルの表示/非表示"><span class="ico">▤</span><span class="lbl">情報パネルを表示</span></button>
+      <button class="map-ctrl-btn" id="btnCycleTileLayer" title="背景地図の切替"><span class="ico">🗺️</span><span class="lbl">淡色地図</span></button>
       <button class="map-ctrl-btn" id="btnToggleTeamLabels" title="チーム名の表示/非表示"><span class="ico">🏷️</span><span class="lbl">チーム名を表示</span></button>
       <button class="map-ctrl-btn active" id="btnToggleGroundsVisible" title="グラウンドの表示/非表示"><span class="ico">⚽</span><span class="lbl">グラウンドを表示</span></button>
       <button class="map-ctrl-btn" id="btnToggleGroundLabels" title="グラウンド名の表示/非表示"><span class="ico">🚩</span><span class="lbl">グラウンド名を表示</span></button>
     </div>
-    <div class="click-banner" id="clickBanner">📍 地図をクリックして地点を追加中… <button class="btn btn-sm" id="btnStopClick" style="margin-left:4px;">終了</button></div>
     <div id="map"></div>
     <div class="toast" id="toast"></div>
   </div>
@@ -865,16 +758,6 @@ document.querySelectorAll('[data-collapse-toggle]').forEach(el=>{
   });
 });
 
-document.getElementById('layerPills').addEventListener('click', (e)=>{
-  const btn = e.target.closest('.pill');
-  if(!btn) return;
-  document.querySelectorAll('#layerPills .pill').forEach(p=>p.classList.remove('active'));
-  btn.classList.add('active');
-  const key = btn.dataset.layer;
-  map.removeLayer(currentTile);
-  currentTile = makeTileLayer(key).addTo(map);
-});
-
 document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=>{
   groundsVisible = !groundsVisible;
   document.getElementById('btnToggleGroundsVisible').classList.toggle('active', groundsVisible);
@@ -883,12 +766,16 @@ document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=
   });
 });
 
-document.getElementById('btnToggleAside').addEventListener('click', ()=>{
-  const collapsed = document.body.classList.toggle('aside-collapsed');
-  const btn = document.getElementById('btnToggleAside');
-  btn.querySelector('.lbl').textContent = collapsed ? '情報パネルを表示' : '情報パネルを隠す';
-  btn.classList.toggle('active', !collapsed);
-  fixMapSize();
+const TILE_ORDER = ['std','pale','blank','photo'];
+const TILE_LABELS = { std:'標準地図', pale:'淡色地図', blank:'白地図', photo:'写真地図' };
+let currentTileKey = 'pale';
+
+document.getElementById('btnCycleTileLayer').addEventListener('click', ()=>{
+  const idx = TILE_ORDER.indexOf(currentTileKey);
+  currentTileKey = TILE_ORDER[(idx+1) % TILE_ORDER.length];
+  map.removeLayer(currentTile);
+  currentTile = makeTileLayer(currentTileKey).addTo(map);
+  document.getElementById('btnCycleTileLayer').querySelector('.lbl').textContent = TILE_LABELS[currentTileKey];
 });
 
 document.getElementById('btnToggleTeamLabels').addEventListener('click', ()=>{
@@ -1253,12 +1140,6 @@ async function loadMatchesFromSheet({silent=false} = {}){
   return ok;
 }
 
-document.getElementById('btnReloadSheets').addEventListener('click', async ()=>{
-  toast('Google Sheetsから読み込み中…');
-  const ok = await loadMatchesFromSheet();
-  if(ok) toast('Google Sheetsの戦績を反映しました');
-});
-
 /* ---------------- smart file import (Excel/CSV, points or matches) ---------------- */
 const RESULT_MAP = { Win:'勝', Lose:'敗', Draw:'分', 勝:'勝', 敗:'敗', 分:'分' };
 
@@ -1449,28 +1330,6 @@ function importRows(rows){
   }
 }
 
-document.getElementById('fileImportInput').addEventListener('change', (e)=>{
-  const file = e.target.files && e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev)=>{
-    try{
-      const data = new Uint8Array(ev.target.result);
-      const wb = XLSX.read(data, {type:'array', cellDates:false});
-      let sheetName = wb.SheetNames.find(n=> n.toLowerCase().includes('data'));
-      if(!sheetName) sheetName = wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
-      importRows(rows);
-    }catch(err){
-      console.error('file import failed', err);
-      toast('ファイルの読み込みに失敗しました');
-    }
-  };
-  reader.readAsArrayBuffer(file);
-  e.target.value = '';
-});
-
 /* ---------------- list rendering ---------------- */
 function buildPointCard(p){
   const card = document.createElement('div');
@@ -1625,132 +1484,9 @@ function getRankedTeams(){
 
 function renderList(){
   applyTeamFilter();
-  const wrap = document.getElementById('listScroll');
-  document.getElementById('countLabel').textContent = `${points.length} 地点 ｜ ${GRADE_LABELS[currentGrade]||currentGrade}`;
-  const listTitleEl = document.getElementById('listSectionTitle');
-  if(listTitleEl) listTitleEl.textContent = `地点一覧（${GRADE_LABELS[currentGrade]||currentGrade} 勝率TOP3・敗率TOP3）`;
-  wrap.innerHTML = '';
-  if(points.length===0){
-    wrap.innerHTML = '<div class="empty" id="emptyMsg">まだ地点がありません。<br>上のフォーム、または地図クリックで追加してください。</div>';
-    return;
-  }
-
-  const { topWin, topLose } = getRankedTeams();
-
-  if(topWin.length===0 && topLose.length===0){
-    wrap.innerHTML = '<div class="empty">戦績データのある地点がまだありません。<br>戦績を登録するとここにTOP3が表示されます。</div>';
-    return;
-  }
-
-  if(topWin.length){
-    const h = document.createElement('div');
-    h.className = 'list-group-title';
-    h.textContent = '🏆 勝率 TOP3';
-    wrap.appendChild(h);
-    topWin.forEach(p=> wrap.appendChild(buildPointCard(p)));
-  }
-  if(topLose.length){
-    const h = document.createElement('div');
-    h.className = 'list-group-title';
-    h.textContent = '📉 敗率 TOP3';
-    wrap.appendChild(h);
-    topLose.forEach(p=> wrap.appendChild(buildPointCard(p)));
-  }
+  const countLabel = document.getElementById('countLabel');
+  if(countLabel) countLabel.textContent = `${points.length} 地点 ｜ ${GRADE_LABELS[currentGrade]||currentGrade}`;
 }
-
-/* ---------------- manual add form ---------------- */
-document.getElementById('btnAddManual').addEventListener('click', ()=>{
-  const name = document.getElementById('inName').value;
-  const lat = document.getElementById('inLat').value;
-  const lng = document.getElementById('inLng').value;
-  if(lat==='' || lng===''){ toast('緯度・経度を入力してください'); return; }
-  addPoint(name, lat, lng, {fly:true});
-  document.getElementById('inName').value = '';
-  document.getElementById('inLat').value = '';
-  document.getElementById('inLng').value = '';
-});
-
-/* ---------------- click-to-add mode ---------------- */
-const btnClickMode = document.getElementById('btnClickMode');
-const clickBanner = document.getElementById('clickBanner');
-
-function setClickMode(on){
-  clickModeOn = on;
-  btnClickMode.classList.toggle('active', on);
-  btnClickMode.classList.toggle('btn-primary', on);
-  btnClickMode.textContent = on ? 'クリック追加モード ON' : '地図をクリックして追加';
-  clickBanner.classList.toggle('show', on);
-  map.getContainer().style.cursor = on ? 'crosshair' : '';
-}
-btnClickMode.addEventListener('click', ()=> setClickMode(!clickModeOn));
-document.getElementById('btnStopClick').addEventListener('click', ()=> setClickMode(false));
-
-map.on('click', (e)=>{
-  if(!clickModeOn) return;
-  const p = addPoint('', e.latlng.lat, e.latlng.lng);
-  if(p){
-    selectPoint(p.id);
-    toast('地点を追加しました。名称は一覧の✎から編集できます');
-  }
-});
-
-/* ---------------- import / export ---------------- */
-document.getElementById('btnImport').addEventListener('click', ()=>{
-  const raw = document.getElementById('ioArea').value.trim();
-  if(!raw){ toast('読み込むCSVを貼り付けてください'); return; }
-  const lines = raw.split(/\r?\n/).filter(l=>l.trim());
-  let added = 0;
-  lines.forEach(line=>{
-    const parts = line.split(',').map(s=>s.trim());
-    if(parts.length < 3) return;
-    const [name, lat, lng, note] = parts;
-    if(name.toLowerCase()==='name' || name==='名称') return; // skip header row
-    if(!Number.isNaN(Number(lat)) && !Number.isNaN(Number(lng))){
-      addPoint(name, lat, lng, {note: note || ''});
-      added++;
-    }
-  });
-  if(added>0){
-    toast(`${added} 件読み込みました`);
-    if(points.length){
-      const b = L.latLngBounds(points.map(p=>[p.lat,p.lng]));
-      map.fitBounds(b, {padding:[40,40]});
-    }
-  } else {
-    toast('有効な行が見つかりませんでした');
-  }
-});
-
-document.getElementById('btnImportMatches').addEventListener('click', ()=>{
-  const raw = document.getElementById('matchIoArea').value.trim();
-  if(!raw){ toast('読み込む戦績CSVを貼り付けてください'); return; }
-  const lines = raw.split(/\r?\n/).filter(l=>l.trim());
-  let added = 0, skipped = 0;
-  const touched = new Set();
-  lines.forEach(line=>{
-    const parts = line.split(',').map(s=>s.trim());
-    if(parts.length < 5){ skipped++; return; }
-    const [teamName, date, category, score, result] = parts;
-    if(teamName==='チーム名' || teamName.toLowerCase()==='team') return; // header row
-    const p = points.find(pp=>pp.name===teamName);
-    if(!p){ skipped++; return; }
-    addMatch(p.id, {date, category, score, result}, {silent:true});
-    touched.add(p.id);
-    added++;
-  });
-  touched.forEach(id=>{
-    const p = points.find(pp=>pp.id===id);
-    const marker = markers[id];
-    if(p && marker){
-      marker.setPopupContent(popupHtml(p));
-      const v = teamVisual(p.matches);
-      marker.setIcon(makeIcon(id===selectedId, v.color, v.skull));
-    }
-  });
-  renderList();
-  persist();
-  toast(`${added} 件登録${skipped ? `（${skipped} 件はチーム名不一致等でスキップ）` : ''}`);
-});
 
 function downloadFile(filename, content, mime){
   const blob = new Blob([content], {type: mime});
@@ -1763,33 +1499,6 @@ function downloadFile(filename, content, mime){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
-document.getElementById('btnExportCsv').addEventListener('click', ()=>{
-  if(points.length===0){ toast('書き出す地点がありません'); return; }
-  const rows = ['name,lat,lng,note,url'];
-  points.forEach(p=>{
-    const safeName = p.name.replace(/,/g, '、');
-    const safeNote = (p.note||'').replace(/,/g, '、');
-    const safeUrl = (p.url||'').replace(/,/g, '');
-    rows.push(`${safeName},${p.lat},${p.lng},${safeNote},${safeUrl}`);
-  });
-  downloadFile('points.csv', rows.join('\n'), 'text/csv');
-  toast('CSVを書き出しました');
-});
-
-document.getElementById('btnExportGeo').addEventListener('click', ()=>{
-  if(points.length===0){ toast('書き出す地点がありません'); return; }
-  const geojson = {
-    type: 'FeatureCollection',
-    features: points.map(p=>({
-      type: 'Feature',
-      properties: { name: p.name },
-      geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
-    }))
-  };
-  downloadFile('points.geojson', JSON.stringify(geojson, null, 2), 'application/geo+json');
-  toast('GeoJSONを書き出しました');
-});
 
 /* ---------------- seed data (initial team list) ---------------- */
 // No.18 REPLO は緯度・経度が未確定のため未収録（所在地: 愛知県 / 精度D 要確認）
