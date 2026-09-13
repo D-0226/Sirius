@@ -548,7 +548,6 @@
   <div class="header-right">
     <span class="count" id="countLabel">0 地点</span>
     <select id="gradeSelect" class="header-toggle" style="cursor:pointer;"></select>
-    <button class="header-toggle" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody">凡例 <span class="chev">▸</span></button>
   </div>
 </header>
 
@@ -572,6 +571,7 @@
       <button class="map-ctrl-btn" id="btnToggleTeamLabels" title="チーム名の表示/非表示"><span class="ico">🏷️</span><span class="lbl">チーム名を表示</span></button>
       <button class="map-ctrl-btn active" id="btnToggleGroundsVisible" title="グラウンドの表示/非表示"><span class="ico">⚽</span><span class="lbl">グラウンドを表示</span></button>
       <button class="map-ctrl-btn" id="btnToggleGroundLabels" title="グラウンド名の表示/非表示"><span class="ico">🚩</span><span class="lbl">グラウンド名を表示</span></button>
+      <button class="map-ctrl-btn" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody" title="凡例の表示/非表示"><span class="ico">🛈</span><span class="lbl">凡例を表示</span></button>
     </div>
     <div id="map"></div>
     <div class="toast" id="toast"></div>
@@ -751,6 +751,57 @@ setTimeout(fixMapSize, 100);
 setTimeout(fixMapSize, 500);
 setTimeout(fixMapSize, 1500);
 
+/* ---------------- avoid overlapping name labels ---------------- */
+let declutterTimer = null;
+function declutterLabels(){
+  const showTeam = document.body.classList.contains('team-labels-visible');
+  const showGround = document.body.classList.contains('ground-labels-visible');
+  if(!showTeam && !showGround) return;
+
+  const entries = [];
+  if(showTeam){
+    points.forEach(p=>{
+      const m = markers[p.id];
+      if(m) entries.push({ marker:m, lat:p.lat, lng:p.lng, name:p.name, cls:'name-label team-label' });
+    });
+  }
+  if(showGround){
+    Object.values(grounds).forEach(g=>{
+      const m = groundMarkers[g.name];
+      if(m) entries.push({ marker:m, lat:g.lat, lng:g.lng, name:g.name, cls:'name-label ground-label' });
+    });
+  }
+  if(entries.length===0) return;
+
+  entries.forEach(e=>{
+    const pt = map.latLngToContainerPoint([e.lat, e.lng]);
+    e.x = pt.x; e.y = pt.y;
+  });
+  // stable placement order: top-to-bottom, then left-to-right
+  entries.sort((a,b)=> (a.y - b.y) || (a.x - b.x));
+
+  const CELL_W = 60, CELL_H = 16;
+  const cellCounts = {};
+  entries.forEach(e=>{
+    const key = Math.round(e.x / CELL_W) + '_' + Math.round(e.y / CELL_H);
+    const n = cellCounts[key] || 0;
+    cellCounts[key] = n + 1;
+    const offsetY = -10 - (14 * n); // stack further labels progressively higher
+    const tt = e.marker.getTooltip && e.marker.getTooltip();
+    const currentOffsetY = (tt && tt.options && tt.options.offset) ? tt.options.offset[1] : null;
+    if(currentOffsetY !== offsetY){
+      e.marker.unbindTooltip();
+      e.marker.bindTooltip(e.name, { permanent:true, direction:'top', offset:[0, offsetY], className: e.cls });
+    }
+  });
+}
+function scheduleDeclutter(){
+  clearTimeout(declutterTimer);
+  declutterTimer = setTimeout(declutterLabels, 120);
+}
+map.on('zoomend', scheduleDeclutter);
+map.on('moveend', scheduleDeclutter);
+
 /* ---------------- collapsible sections ---------------- */
 document.querySelectorAll('[data-collapse-toggle]').forEach(el=>{
   el.addEventListener('click', ()=>{
@@ -758,8 +809,12 @@ document.querySelectorAll('[data-collapse-toggle]').forEach(el=>{
     const body = targetId ? document.getElementById(targetId) : el.nextElementSibling;
     if(!body) return;
     body.classList.toggle('collapsed');
+    const isOpen = !body.classList.contains('collapsed');
     const chev = el.querySelector('.chev');
-    if(chev) chev.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
+    if(chev) chev.textContent = isOpen ? '▾' : '▸';
+    const lbl = el.querySelector('.lbl');
+    if(lbl) lbl.textContent = isOpen ? '凡例を隠す' : '凡例を表示';
+    el.classList.toggle('active', isOpen);
     fixMapSize();
   });
 });
@@ -787,11 +842,13 @@ document.getElementById('btnCycleTileLayer').addEventListener('click', ()=>{
 document.getElementById('btnToggleTeamLabels').addEventListener('click', ()=>{
   const visible = document.body.classList.toggle('team-labels-visible');
   document.getElementById('btnToggleTeamLabels').classList.toggle('active', visible);
+  if(visible) declutterLabels();
 });
 
 document.getElementById('btnToggleGroundLabels').addEventListener('click', ()=>{
   const visible = document.body.classList.toggle('ground-labels-visible');
   document.getElementById('btnToggleGroundLabels').classList.toggle('active', visible);
+  if(visible) declutterLabels();
 });
 
 const FILTER_LABELS = {
@@ -811,6 +868,7 @@ document.querySelector('.legend-bar').addEventListener('click', (e)=>{
     el.classList.toggle('active-filter', el.dataset.filter === activeTeamFilter);
   });
   applyTeamFilter();
+  scheduleDeclutter();
   toast(activeTeamFilter ? `絞り込み: ${FILTER_LABELS[activeTeamFilter]}` : '絞り込みを解除しました');
 });
 
@@ -1688,6 +1746,7 @@ const SEED_MATCHES = [
     map.fitBounds(b, {padding:[40,40]});
   }
   setTimeout(fixMapSize, 200);
+  setTimeout(declutterLabels, 400);
 })();
 </script>
 </body>
