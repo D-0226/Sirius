@@ -49,9 +49,9 @@
   header{
     display:flex;
     align-items:center;
-    flex-wrap:wrap;
-    gap:8px 12px;
-    padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
+    flex-wrap:nowrap;
+    gap:8px;
+    padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
     background:var(--panel);
     border-bottom:1px solid var(--line);
     flex-shrink:0;
@@ -62,21 +62,23 @@
     font-weight:700;
     letter-spacing:.02em;
     margin:0;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    min-width:0;
   }
-  header .tag{
-    font-family:var(--mono);
-    font-size:11px;
-    color:var(--ink-soft);
-    background:var(--paper);
-    border:1px solid var(--line);
-    border-radius:3px;
-    padding:2px 7px;
+  .header-right{
+    margin-left:auto;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex-shrink:0;
   }
   header .count{
-    margin-left:auto;
     font-family:var(--mono);
-    font-size:12px;
+    font-size:11.5px;
     color:var(--ink-soft);
+    white-space:nowrap;
   }
   .header-toggle{
     background:transparent;
@@ -529,10 +531,13 @@
   .list-scroll::-webkit-scrollbar{ width:8px; }
   .list-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
 
-  /* very narrow phones: trim non-essential header chrome */
+  /* very narrow phones: keep header compact and on one line */
   @media (max-width: 380px){
-    header .tag{ display:none; }
-    header h1{ font-size:14px; }
+    header h1{ font-size:13px; }
+    .header-right{ gap:4px; }
+    header .count{ font-size:10.5px; }
+    #gradeSelect{ font-size:10.5px; padding:3px 4px; max-width:64px; }
+    .header-toggle{ font-size:10px; padding:3px 6px; }
   }
 </style>
 </head>
@@ -540,10 +545,11 @@
 
 <header>
   <h1>FC sirius戦績マップ（非公式）</h1>
-  <select id="gradeSelect" class="header-toggle" style="cursor:pointer;"></select>
-  <span class="tag">地理院タイル</span>
-  <span class="count" id="countLabel">0 地点</span>
-  <button class="header-toggle" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody">凡例 <span class="chev">▸</span></button>
+  <div class="header-right">
+    <span class="count" id="countLabel">0 地点</span>
+    <select id="gradeSelect" class="header-toggle" style="cursor:pointer;"></select>
+    <button class="header-toggle" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody">凡例 <span class="chev">▸</span></button>
+  </div>
 </header>
 
 <div class="collapsible-body collapsed" id="legendBody">
