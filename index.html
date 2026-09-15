@@ -72,13 +72,18 @@
     display:flex;
     align-items:center;
     gap:6px;
-    flex-shrink:0;
+    flex-shrink:1;
+    min-width:0;
+    max-width:58%;
   }
   header .count{
     font-family:var(--mono);
     font-size:11.5px;
     color:var(--ink-soft);
     white-space:nowrap;
+    flex-shrink:1;
+    overflow:hidden;
+    text-overflow:ellipsis;
   }
   .header-toggle{
     background:transparent;
@@ -89,6 +94,10 @@
     padding:3px 8px;
     cursor:pointer;
     flex-shrink:0;
+  }
+  #gradeSelect{
+    max-width:84px;
+    box-sizing:border-box;
   }
   .header-toggle:hover{ background:var(--paper); }
 
@@ -671,12 +680,56 @@ function groundIcon(){
   });
 }
 
+// Apps Scriptウェブアプリのデプロイ後URL(書き込み用)。設定するまではローカル保存のみで動作します。
+const GROUND_MEMO_WRITE_URL = '';
+// grounds_memo タブを「ウェブに公開」したCSV URL(読み込み用)。設定するまでは自分のブラウザのメモのみ表示されます。
+const GROUND_MEMO_CSV_URL = '';
+
+let groundMemoCache = {}; // name -> memo (Google Sheetsから読み込んだ値)
+
+async function loadGroundMemosFromSheet(){
+  if(!GROUND_MEMO_CSV_URL) return;
+  try{
+    const res = await fetch(GROUND_MEMO_CSV_URL, {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    const headerIdx = rows.findIndex(r => r.map(c=>String(c).trim()).includes('ground'));
+    if(headerIdx === -1) return;
+    const header = rows[headerIdx].map(c=>String(c).trim());
+    const iGround = header.indexOf('ground');
+    const iMemo = header.indexOf('memo');
+    for(let i=headerIdx+1;i<rows.length;i++){
+      const r = rows[i];
+      if(!r || !r[iGround] || !String(r[iGround]).trim()) continue;
+      groundMemoCache[String(r[iGround]).trim()] = iMemo>=0 ? String(r[iMemo]||'') : '';
+    }
+  }catch(err){
+    console.error('ground memo sheet fetch failed', err);
+  }
+}
+
 function groundMemoKey(name){ return 'ground_memo_' + name; }
 function getGroundMemo(name){
+  if(groundMemoCache[name] !== undefined) return groundMemoCache[name];
   try{ return localStorage.getItem(groundMemoKey(name)) || ''; }catch(e){ return ''; }
 }
-function setGroundMemo(name, text){
-  try{ localStorage.setItem(groundMemoKey(name), text); return true; }catch(e){ return false; }
+async function setGroundMemo(name, text){
+  groundMemoCache[name] = text;
+  try{ localStorage.setItem(groundMemoKey(name), text); }catch(e){ /* ignore */ }
+  if(!GROUND_MEMO_WRITE_URL) return true; // Sheets未設定の場合はローカル保存のみ
+  try{
+    await fetch(GROUND_MEMO_WRITE_URL, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ ground:name, memo:text })
+    });
+    return true;
+  }catch(err){
+    console.error('ground memo write failed', err);
+    return false;
+  }
 }
 
 function groundPopupHtml(g){
@@ -700,6 +753,21 @@ function groundPopupHtml(g){
     </div>`;
 }
 
+function groundHasCurrentGradeMatches(g){
+  return matchesForGrade(g.matches).length > 0;
+}
+
+function applyGroundGradeFilter(){
+  Object.values(grounds).forEach(g=>{
+    const marker = groundMarkers[g.name];
+    if(!marker) return;
+    const shouldShow = groundsVisible && groundHasCurrentGradeMatches(g);
+    const onMap = map.hasLayer(marker);
+    if(shouldShow && !onMap) marker.addTo(map);
+    if(!shouldShow && onMap) map.removeLayer(marker);
+  });
+}
+
 function renderGroundMarker(g){
   const marker = L.marker([g.lat, g.lng], { icon: groundIcon() });
   marker.bindPopup(groundPopupHtml(g), { maxWidth: 260 });
@@ -709,13 +777,17 @@ function renderGroundMarker(g){
     const btn = container.querySelector('[data-act="save-ground-memo"]');
     const ta = container.querySelector('.ground-memo-input');
     if(btn && ta){
-      btn.addEventListener('click', ()=>{
-        const ok = setGroundMemo(g.name, ta.value);
+      btn.addEventListener('click', async ()=>{
+        btn.disabled = true;
+        btn.textContent = '保存中…';
+        const ok = await setGroundMemo(g.name, ta.value);
+        btn.disabled = false;
+        btn.textContent = 'メモを保存';
         toast(ok ? 'メモを保存しました' : 'メモの保存に失敗しました');
       });
     }
   });
-  if(groundsVisible) marker.addTo(map);
+  if(groundsVisible && groundHasCurrentGradeMatches(g)) marker.addTo(map);
   groundMarkers[g.name] = marker;
 }
 
@@ -740,6 +812,26 @@ function refreshGroundMarkers(){
 
 /* ---------------- keep map sized correctly (fixes blank map on mobile) ---------------- */
 function fixMapSize(){ map.invalidateSize(); }
+
+/* ---------------- separate markers sharing (near-)identical coordinates ---------------- */
+function deconflictCoordinates(list){
+  const groups = {};
+  list.forEach(it=>{
+    const key = it.lat.toFixed(3) + ',' + it.lng.toFixed(3);
+    (groups[key] = groups[key] || []).push(it);
+  });
+  Object.values(groups).forEach(group=>{
+    const n = group.length;
+    if(n <= 1) return;
+    const radius = 0.0045; // ~500m: enough to separate visually at city-level zoom
+    group.forEach((it, i)=>{
+      const angle = (2*Math.PI*i)/n;
+      const latRad = it.lat * Math.PI/180;
+      it.lat = it.lat + radius*Math.cos(angle);
+      it.lng = it.lng + radius*Math.sin(angle)/Math.cos(latRad);
+    });
+  });
+}
 window.addEventListener('load', fixMapSize);
 window.addEventListener('resize', fixMapSize);
 window.addEventListener('orientationchange', ()=> setTimeout(fixMapSize, 300));
@@ -821,9 +913,7 @@ document.querySelectorAll('[data-collapse-toggle]').forEach(el=>{
 document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=>{
   groundsVisible = !groundsVisible;
   document.getElementById('btnToggleGroundsVisible').classList.toggle('active', groundsVisible);
-  Object.values(groundMarkers).forEach(m=>{
-    if(groundsVisible) m.addTo(map); else map.removeLayer(m);
-  });
+  applyGroundGradeFilter();
 });
 
 const TILE_ORDER = ['std','pale','blank','photo'];
@@ -889,6 +979,7 @@ function refreshAllForGrade(){
     const marker = groundMarkers[g.name];
     if(marker) marker.setPopupContent(groundPopupHtml(g));
   });
+  applyGroundGradeFilter();
   renderList();
 }
 
@@ -1720,9 +1811,19 @@ const SEED_MATCHES = [
     points.forEach(renderMarker);
   }
 
+  // 完全一致・近接する座標のチームを視覚的に分離
+  deconflictCoordinates(points);
+  points.forEach(p=>{
+    const m = markers[p.id];
+    if(m) m.setLatLng([p.lat, p.lng]);
+  });
+
   // 戦績は Google Sheets(data タブ) をまず取りに行く。失敗時のみ埋め込みの
   // スナップショットデータ(SEED_MATCHES)で最低限の表示を確保する。
-  const liveOk = await loadMatchesFromSheet({silent:true});
+  const [liveOk] = await Promise.all([
+    loadMatchesFromSheet({silent:true}),
+    loadGroundMemosFromSheet(),
+  ]);
   if(!liveOk && points.every(p=>(p.matches||[]).length===0)){
     SEED_MATCHES.forEach(([team,date,category,score,result])=>{
       const p = points.find(pp=>pp.name===team);
