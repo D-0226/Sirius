@@ -1182,7 +1182,7 @@ function popupHtml(p){
 
 function renderMarker(p){
   const v = teamVisual(p.matches);
-  const marker = L.marker([p.lat, p.lng], { draggable:true, icon: makeIcon(p.id===selectedId, v.color, v.skull) }).addTo(map);
+  const marker = L.marker([p.lat, p.lng], { icon: makeIcon(p.id===selectedId, v.color, v.skull) }).addTo(map);
   marker.bindPopup(popupHtml(p), { maxWidth: 260 });
   marker.bindTooltip(p.name, { permanent:true, direction:'top', offset:[0,-10], className:'name-label team-label' });
   marker.on('dragend', ()=>{
@@ -1660,7 +1660,7 @@ const SEED_DATA = [
   ['FC golazo gol一宮', 35.3039, 136.8016, '一宮市 ｜ 精度C ｜ 市代表点', 'https://www.instagram.com/soccer_g_g_i/'],
   ['Hikari FC', 35.2979, 137.0190, '春日井市坂下町6-782-10 ｜ 精度A ｜ ◎', 'https://instagram.com/hikarifc_official'],
   ['HAPPINESS', 34.8940, 136.9540, '半田市大池町4-59-1 ｜ 精度A ｜ ◎', 'https://www.happiness-soccer.net/'],
-  ['FC Toyotake', 35.0834, 137.1563, '豊田市 ｜ 精度D ｜ 市代表点', 'https://fctoyoake.jp/'],
+  ['FC Toyoake', 35.0558, 136.9896, '愛知県豊明市新栄町2丁目377 ｜ 精度A ｜ 拠点住所', 'https://fctoyoake.jp/'],
   ['安城北部FC', 34.9587, 137.0800, '安城市 ｜ 精度B ｜ 市代表点', 'https://anjo-hokubu-fc.main.jp/'],
   ['FC SAMURAI', 34.9547, 137.1740, '岡崎市 ｜ 精度C ｜ 市代表点', 'https://fcsamurai.net/'],
   ['FCヴェルダン', 34.9547, 137.1740, '岡崎市・幸田町周辺 ｜ 精度B ｜ 市代表点', 'https://fcverdao.amebaownd.com/'],
@@ -1747,8 +1747,8 @@ const SEED_MATCHES = [
   ['Hikari FC', '2026-04-18', 'U-7', '1-7', '敗'],
   ['HAPPINESS', '2026-04-29', 'U-7', '33-0', '勝'],
   ['HAPPINESS', '2026-04-29', 'U-8', '8-1', '勝'],
-  ['FC Toyotake', '2026-05-02', 'U-7', '29-0', '勝'],
-  ['FC Toyotake', '2026-05-02', 'U-8', '33-1', '勝'],
+  ['FC Toyoake', '2026-05-02', 'U-7', '29-0', '勝'],
+  ['FC Toyoake', '2026-05-02', 'U-8', '33-1', '勝'],
   ['安城北部FC', '2026-05-03', 'U-8', '2-0', '勝'],
   ['FC SAMURAI', '2026-05-03', 'U-8', '9-0', '勝'],
   ['安城北部FC', '2026-05-03', 'U-8', '0-2', '敗'],
