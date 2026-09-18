@@ -128,7 +128,7 @@
     border:1px solid var(--line);
     border-radius:8px;
     box-shadow:0 4px 12px rgba(0,0,0,.15);
-    max-height:240px;
+    max-height:min(240px, 50vh);
     overflow-y:auto;
     z-index:30;
   }
@@ -238,6 +238,9 @@
   }
   .collapsible-body.collapsed{
     display:none;
+  }
+  #legendBody{
+    overflow:visible; /* 検索結果ドロップダウンが枠内でクリップされないようにする */
   }
 
   /* add point form */
