@@ -101,6 +101,52 @@
   }
   .header-toggle:hover{ background:var(--paper); }
 
+  .legend-search{
+    position:relative;
+    padding:10px 20px 0;
+    background:var(--paper);
+  }
+  #mapSearchInput{
+    width:100%;
+    box-sizing:border-box;
+    padding:8px 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:13px;
+    font-family:var(--sans);
+    background:var(--panel);
+    color:var(--ink);
+  }
+  #mapSearchInput:focus{ outline:2px solid var(--blue); outline-offset:-1px; }
+  .search-results{
+    display:none;
+    position:absolute;
+    left:20px;
+    right:20px;
+    top:calc(100% + 2px);
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    box-shadow:0 4px 12px rgba(0,0,0,.15);
+    max-height:240px;
+    overflow-y:auto;
+    z-index:30;
+  }
+  .search-results.show{ display:block; }
+  .search-result-item{
+    display:flex;
+    flex-direction:column;
+    gap:1px;
+    padding:8px 10px;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .search-result-item:last-child{ border-bottom:none; }
+  .search-result-item:hover{ background:var(--paper); }
+  .search-result-item .sr-name{ font-size:13px; font-weight:600; color:var(--ink); }
+  .search-result-item .sr-sub{ font-size:11px; color:var(--ink-soft); }
+  .search-empty{ padding:10px; font-size:12.5px; color:var(--ink-soft); text-align:center; }
+
   .legend-bar{
     display:flex;
     flex-wrap:wrap;
@@ -562,6 +608,10 @@
 </header>
 
 <div class="collapsible-body collapsed" id="legendBody">
+<div class="legend-search">
+  <input type="text" id="mapSearchInput" placeholder="🔍 チーム名・住所で検索" autocomplete="off">
+  <div id="mapSearchResults" class="search-results"></div>
+</div>
 <div class="legend-bar">
   <span class="legend-item" data-filter="green">🟢 勝率100%（全勝）</span>
   <span class="legend-item" data-filter="yellow">🟡 勝率60%〜99%</span>
@@ -581,7 +631,7 @@
       <button class="map-ctrl-btn" id="btnToggleTeamLabels" title="チーム名の表示/非表示"><span class="ico">🏷️</span><span class="lbl">チーム名</span></button>
       <button class="map-ctrl-btn active" id="btnToggleGroundsVisible" title="グラウンドの表示/非表示"><span class="ico">⚽</span><span class="lbl">グラウンド</span></button>
       <button class="map-ctrl-btn" id="btnToggleGroundLabels" title="グラウンド名の表示/非表示"><span class="ico">🚩</span><span class="lbl">会場名</span></button>
-      <button class="map-ctrl-btn" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody" title="凡例の表示/非表示"><span class="ico">🛈</span><span class="lbl">凡例</span></button>
+      <button class="map-ctrl-btn" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody" title="凡例・検索の表示/非表示"><span class="ico">🔍</span><span class="lbl">凡例/検索</span></button>
     </div>
     <div id="map"></div>
     <div class="toast" id="toast"></div>
@@ -960,6 +1010,66 @@ document.querySelector('.legend-bar').addEventListener('click', (e)=>{
   scheduleDeclutter();
   toast(activeTeamFilter ? `絞り込み: ${FILTER_LABELS[activeTeamFilter]}` : '絞り込みを解除しました');
 });
+
+/* ---------------- name / address search ---------------- */
+const mapSearchInput = document.getElementById('mapSearchInput');
+const mapSearchResults = document.getElementById('mapSearchResults');
+
+function normalizeSearchText(s){
+  return (s||'').toString().toLowerCase().replace(/\s+/g,'');
+}
+
+function runMapSearch(rawQuery){
+  const q = normalizeSearchText(rawQuery);
+  mapSearchResults.innerHTML = '';
+  if(!q){ mapSearchResults.classList.remove('show'); return; }
+
+  const results = [];
+  points.forEach(p=>{
+    const hay = normalizeSearchText(p.name + ' ' + (p.note||''));
+    if(hay.includes(q)) results.push({ type:'team', name:p.name, sub:p.note||'', ref:p });
+  });
+  Object.values(grounds).forEach(g=>{
+    const hay = normalizeSearchText(g.name);
+    if(hay.includes(q)) results.push({ type:'ground', name:g.name, sub:'⚽ グラウンド', ref:g });
+  });
+
+  if(results.length===0){
+    mapSearchResults.innerHTML = '<div class="search-empty">該当する地点が見つかりません</div>';
+    mapSearchResults.classList.add('show');
+    return;
+  }
+
+  results.slice(0,25).forEach(r=>{
+    const item = document.createElement('div');
+    item.className = 'search-result-item';
+    item.innerHTML = `<span class="sr-name">${escapeHtml(r.name)}</span><span class="sr-sub">${escapeHtml(r.sub)}</span>`;
+    item.addEventListener('click', ()=>{
+      let marker, lat, lng;
+      if(r.type==='team'){
+        marker = markers[r.ref.id]; lat = r.ref.lat; lng = r.ref.lng;
+        if(marker) selectPoint(r.ref.id);
+      } else {
+        marker = groundMarkers[r.ref.name]; lat = r.ref.lat; lng = r.ref.lng;
+      }
+      if(marker){
+        map.flyTo([lat, lng], Math.max(map.getZoom(), 15));
+        marker.openPopup();
+      }
+      mapSearchResults.classList.remove('show');
+      mapSearchInput.value = '';
+      const legendBody = document.getElementById('legendBody');
+      legendBody.classList.add('collapsed');
+      document.getElementById('btnHeaderToggle').classList.remove('active');
+      fixMapSize();
+    });
+    mapSearchResults.appendChild(item);
+  });
+  mapSearchResults.classList.add('show');
+}
+
+mapSearchInput.addEventListener('input', (e)=> runMapSearch(e.target.value));
+mapSearchInput.addEventListener('focus', (e)=>{ if(e.target.value) runMapSearch(e.target.value); });
 
 /* ---------------- grade select (学年別表示) ---------------- */
 const gradeSelectEl = document.getElementById('gradeSelect');
