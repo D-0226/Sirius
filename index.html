@@ -120,17 +120,13 @@
   #mapSearchInput:focus{ outline:2px solid var(--blue); outline-offset:-1px; }
   .search-results{
     display:none;
-    position:absolute;
-    left:20px;
-    right:20px;
-    top:calc(100% + 2px);
+    position:fixed;
     background:var(--panel);
     border:1px solid var(--line);
     border-radius:8px;
     box-shadow:0 4px 12px rgba(0,0,0,.15);
-    max-height:min(240px, 50vh);
     overflow-y:auto;
-    z-index:30;
+    z-index:2000;
   }
   .search-results.show{ display:block; }
   .search-result-item{
