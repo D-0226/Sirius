@@ -1018,6 +1018,21 @@ function normalizeSearchText(s){
   return (s||'').toString().toLowerCase().replace(/\s+/g,'');
 }
 
+function positionSearchResults(){
+  const rect = mapSearchInput.getBoundingClientRect();
+  const viewportH = window.innerHeight;
+  const margin = 8;
+  const top = rect.bottom + 4;
+  const available = Math.max(80, viewportH - top - margin); // 常に画面内に収まる高さ
+  mapSearchResults.style.left = rect.left + 'px';
+  mapSearchResults.style.width = rect.width + 'px';
+  mapSearchResults.style.top = top + 'px';
+  mapSearchResults.style.maxHeight = available + 'px';
+}
+window.addEventListener('resize', ()=>{
+  if(mapSearchResults.classList.contains('show')) positionSearchResults();
+});
+
 function runMapSearch(rawQuery){
   const q = normalizeSearchText(rawQuery);
   mapSearchResults.innerHTML = '';
@@ -1035,6 +1050,7 @@ function runMapSearch(rawQuery){
 
   if(results.length===0){
     mapSearchResults.innerHTML = '<div class="search-empty">該当する地点が見つかりません</div>';
+    positionSearchResults();
     mapSearchResults.classList.add('show');
     return;
   }
@@ -1064,6 +1080,7 @@ function runMapSearch(rawQuery){
     });
     mapSearchResults.appendChild(item);
   });
+  positionSearchResults();
   mapSearchResults.classList.add('show');
 }
 
