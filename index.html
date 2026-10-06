@@ -101,6 +101,45 @@
   }
   .header-toggle:hover{ background:var(--paper); }
 
+  /* ===== 観戦ガイド改善UI ===== */
+  .guide-strip{
+    background:var(--panel); border-bottom:1px solid var(--line); padding:8px 12px;
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; flex-shrink:0; z-index:15;
+  }
+  .guide-card{background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:8px 10px; min-width:0;}
+  .guide-card .gc-label{font-size:10px;color:var(--ink-soft);font-weight:700;margin-bottom:3px;}
+  .guide-card .gc-main{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .guide-card .gc-sub{font-size:10.5px;color:var(--ink-soft);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .guide-card.next{border-left:4px solid var(--accent);}
+  .guide-actions{display:flex;gap:6px;margin-top:5px;}
+  .guide-action{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 7px;font-size:10px;cursor:pointer;color:var(--ink);}
+  .guide-action:hover{background:var(--paper);}
+  .guide-section{padding:7px 12px;background:var(--paper);border-bottom:1px solid var(--line);}
+  .guide-section-title{font-size:10px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;}
+  .recent-list{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;}
+  .recent-item{flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 8px;min-width:105px;cursor:pointer;}
+  .recent-item .ri-top{font-size:10px;color:var(--ink-soft);}
+  .recent-item .ri-team{font-size:11px;font-weight:700;max-width:135px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .recent-item .ri-score{font-family:var(--mono);font-size:11px;margin-top:2px;}
+  .result-win{color:#16803c}.result-draw{color:#9a6b00}.result-lose{color:#c43b2f}
+  .guide-search{padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);}
+  .guide-search #mapSearchInput{padding:10px 12px;border-radius:9px;font-size:13px;}
+  .map-quick-help{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:10px;color:var(--ink-soft);z-index:500;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+  .popup-actions{display:flex;gap:6px;margin-top:8px;}
+  .popup-action{display:inline-block;text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:11px;color:var(--ink);background:#fff;}
+  .popup-action.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .match-summary{display:flex;gap:5px;margin:6px 0 2px;}
+  .match-stat{flex:1;text-align:center;border:1px solid var(--line);border-radius:6px;padding:5px 2px;background:#fff;}
+  .match-stat b{display:block;font-size:13px}.match-stat span{font-size:9px;color:var(--ink-soft);}
+  @media(max-width:600px){
+    .guide-strip{grid-template-columns:1fr 1fr;padding:7px 8px;gap:6px;}
+    .guide-card:first-child{grid-column:1 / -1;}
+    .guide-card{padding:7px 9px;}
+    .guide-section{padding:6px 8px;}
+    .guide-search{padding:7px 8px;}
+    .map-quick-help{bottom:8px;left:8px;font-size:9px;}
+  }
+
   .legend-search{
     position:relative;
     padding:10px 20px 0;
@@ -586,6 +625,10 @@
   .list-scroll::-webkit-scrollbar{ width:8px; }
   .list-scroll::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
 
+  .grade-overlay-toggle{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#475569;white-space:nowrap;cursor:pointer;user-select:none;}
+  .grade-overlay-toggle input{margin:0;accent-color:#1B4B66;}
+  .other-grade-badge{font-size:9px;color:#64748B;margin-left:2px;}
+
   /* very narrow phones: keep header compact and on one line */
   @media (max-width: 380px){
     header h1{ font-size:13px; }
@@ -603,14 +646,31 @@
   <div class="header-right">
     <span class="count" id="countLabel">0 地点</span>
     <select id="gradeSelect" class="header-toggle" style="cursor:pointer;"></select>
+    <label class="grade-overlay-toggle" title="選択学年以外の対戦チーム・会場も地図に表示">
+      <input type="checkbox" id="otherGradeToggle">
+      <span>他学年も表示</span>
+    </label>
   </div>
 </header>
 
-<div class="collapsible-body collapsed" id="legendBody">
-<div class="legend-search">
-  <input type="text" id="mapSearchInput" placeholder="🔍 チーム名・住所で検索" autocomplete="off">
+<div class="guide-strip" id="guideStrip">
+  <div class="guide-card">
+    <div class="gc-label">対戦チーム</div>
+    <div class="gc-main" id="teamCountMain">-</div>
+    <div class="gc-sub" id="teamCountSub">表示学年</div>
+  </div>
+  <div class="guide-card">
+    <div class="gc-label">今季の戦績</div>
+    <div class="gc-main" id="overallRecordMain">-</div>
+    <div class="gc-sub" id="overallRecordSub">表示学年の全対戦</div>
+  </div>
+</div>
+<div class="guide-search">
+  <input type="text" id="mapSearchInput" placeholder="🔍 チーム名・会場・住所で検索" autocomplete="off">
   <div id="mapSearchResults" class="search-results"></div>
 </div>
+<div class="collapsible-body collapsed" id="legendBody">
+<div class="legend-search" style="display:none"></div>
 <div class="legend-bar">
   <span class="legend-item" data-filter="green">🟢 勝率100%（全勝）</span>
   <span class="legend-item" data-filter="yellow">🟡 勝率60%〜99%</span>
@@ -633,6 +693,7 @@
       <button class="map-ctrl-btn" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody" title="凡例・検索の表示/非表示"><span class="ico">🔍</span><span class="lbl">凡例/検索</span></button>
     </div>
     <div id="map"></div>
+    <div class="map-quick-help">🟢勝率高　🟠要注意　🔴勝率低　⚽会場</div>
     <div class="toast" id="toast"></div>
   </div>
 </div>
@@ -661,9 +722,25 @@ function saveGrade(g){
   try{ localStorage.setItem(GRADE_STORAGE_KEY, g); }catch(e){ /* ignore */ }
 }
 let currentGrade = loadSavedGrade();
+let showOtherGrades = false;
 
 function matchesForGrade(matches){
   return (matches||[]).filter(m => (m.category||'').trim() === currentGrade);
+}
+function matchesForOtherGrades(matches){
+  return (matches||[]).filter(m => {
+    const c = (m.category||'').trim();
+    return c && c !== currentGrade && GRADE_OPTIONS.includes(c);
+  });
+}
+function hasAnyMatch(matches){
+  return (matches||[]).some(m => GRADE_OPTIONS.includes((m.category||'').trim()));
+}
+function gradeSummary(matches, grade){
+  const filtered=(matches||[]).filter(m=>(m.category||'').trim()===grade);
+  const s={win:0,draw:0,lose:0,total:filtered.length};
+  filtered.forEach(m=>{if(m.result==='勝')s.win++;else if(m.result==='分')s.draw++;else if(m.result==='敗')s.lose++;});
+  return s;
 }
 
 /* ---------------- state ---------------- */
@@ -790,27 +867,40 @@ function groundPopupHtml(g){
         <span class="pmono">vs ${escapeHtml(m.opponent||'')}</span>
         <span>${escapeHtml(m.score||'')} ${escapeHtml(m.result||'')}</span>
       </div>`).join('');
+  let otherGradeGroundBlock='';
+  if(showOtherGrades){
+    const rows=GRADE_OPTIONS.filter(gr=>gr!==currentGrade).map(gr=>{
+      const ms=(g.matches||[]).filter(m=>(m.category||'').trim()===gr);
+      return ms.length ? `<div class="precord-row"><span>${escapeHtml(gr)}（${escapeHtml(GRADE_LABELS[gr])}）</span><span>全${ms.length}試合</span><span></span></div>` : '';
+    }).filter(Boolean).join('');
+    if(rows) otherGradeGroundBlock=`<div class="precord"><div class="precord-title">他学年の会場実績</div>${rows}</div>`;
+  }
   const memo = escapeHtml(getGroundMemo(g.name));
+  const groundMapLink = `<div class="popup-actions"><a href="https://www.google.com/maps/search/?api=1&query=${g.lat},${g.lng}" target="_blank" rel="noopener" class="popup-action primary">📍 Google Mapsで開く</a></div>`;
   return `<b>⚽ ${escapeHtml(g.name)}</b>
     <div class="precord">
       <div class="precord-title">試合実績 ${matches.length}件（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}）</div>
       ${rows || '<div style="font-size:11px;color:#5A6472;">記録なし</div>'}
     </div>
+    ${otherGradeGroundBlock}
     <div style="margin-top:8px;">
       <textarea class="ground-memo-input" data-ground="${escapeHtml(g.name)}" placeholder="メモ（駐車場・アクセスなど）" style="width:100%;min-height:50px;font-size:11px;padding:5px;border:1px solid #DDD8CB;border-radius:4px;box-sizing:border-box;">${memo}</textarea>
       <button class="btn btn-sm btn-primary" data-act="save-ground-memo" style="margin-top:4px;width:100%;">メモを保存</button>
-    </div>`;
+    </div>${groundMapLink}`;
 }
 
 function groundHasCurrentGradeMatches(g){
   return matchesForGrade(g.matches).length > 0;
+}
+function groundHasOtherGradeMatches(g){
+  return matchesForOtherGrades(g.matches).length > 0;
 }
 
 function applyGroundGradeFilter(){
   Object.values(grounds).forEach(g=>{
     const marker = groundMarkers[g.name];
     if(!marker) return;
-    const shouldShow = groundsVisible && groundHasCurrentGradeMatches(g);
+    const shouldShow = groundsVisible && (groundHasCurrentGradeMatches(g) || (showOtherGrades && groundHasOtherGradeMatches(g)));
     const onMap = map.hasLayer(marker);
     if(shouldShow && !onMap) marker.addTo(map);
     if(!shouldShow && onMap) map.removeLayer(marker);
@@ -1041,12 +1131,17 @@ function runMapSearch(rawQuery){
   const results = [];
   points.forEach(p=>{
     const hay = normalizeSearchText(p.name + ' ' + (p.note||''));
-    if(hay.includes(q)) results.push({ type:'team', name:p.name, sub:p.note||'', ref:p });
+    if(hay.includes(q)) {
+      const sm = recordSummary(p.matches);
+      results.push({ type:'team', name:p.name, sub:`${p.note||'対戦チーム'}${sm.total ? ` ｜ ${sm.win}勝${sm.draw}分${sm.lose}敗` : ''}`, ref:p, score: hay.indexOf(q) });
+    }
   });
   Object.values(grounds).forEach(g=>{
-    const hay = normalizeSearchText(g.name);
-    if(hay.includes(q)) results.push({ type:'ground', name:g.name, sub:'⚽ グラウンド', ref:g });
+    const memo = getGroundMemo(g.name);
+    const hay = normalizeSearchText(g.name + ' ' + memo);
+    if(hay.includes(q)) results.push({ type:'ground', name:g.name, sub:`⚽ 会場${memo ? ' ｜ メモあり' : ''}`, ref:g, score: hay.indexOf(q) });
   });
+  results.sort((a,b)=>(a.score||0)-(b.score||0));
 
   if(results.length===0){
     mapSearchResults.innerHTML = '<div class="search-empty">該当する地点が見つかりません</div>';
@@ -1087,6 +1182,51 @@ function runMapSearch(rawQuery){
 mapSearchInput.addEventListener('input', (e)=> runMapSearch(e.target.value));
 mapSearchInput.addEventListener('focus', (e)=>{ if(e.target.value) runMapSearch(e.target.value); });
 
+/* ---------------- 観戦ガイドサマリー ---------------- */
+function allGradeMatchesForCurrent(){
+  const arr=[];
+  points.forEach(p=>{
+    matchesForGrade(p.matches).forEach(m=>arr.push({...m, opponent:p.name, pointId:p.id}));
+  });
+  return arr;
+}
+function formatGuideDate(v){
+  if(!v) return '';
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime())) return v;
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+function updateGuide(){
+  const matches=allGradeMatchesForCurrent();
+  const opponents=new Set(matches.map(m=>m.opponent));
+  const wins=matches.filter(m=>m.result==='勝').length;
+  const draws=matches.filter(m=>m.result==='分').length;
+  const loses=matches.filter(m=>m.result==='敗').length;
+  const tc=document.getElementById('teamCountMain');
+  const ts=document.getElementById('teamCountSub');
+  const rm=document.getElementById('overallRecordMain');
+  const rs=document.getElementById('overallRecordSub');
+  if(tc) tc.textContent=`${opponents.size}チーム`;
+  if(ts) ts.textContent=`${GRADE_LABELS[currentGrade]||currentGrade}・対戦実績`;
+  if(rm) rm.textContent=`${wins}勝 ${draws}分 ${loses}敗`;
+  if(rs) rs.textContent=matches.length ? `全${matches.length}試合` : '試合データなし';
+
+
+  const recent=matches.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,6);
+  const old=document.getElementById('recentGuideSection');
+  if(old) old.remove();
+  if(recent.length){
+    const sec=document.createElement('div'); sec.id='recentGuideSection'; sec.className='guide-section';
+    sec.innerHTML=`<div class="guide-section-title">最近の対戦</div><div class="recent-list">${recent.map(m=>{
+      const cls=m.result==='勝'?'result-win':m.result==='分'?'result-draw':'result-lose';
+      return `<div class="recent-item" data-point-id="${m.pointId}"><div class="ri-top">${escapeHtml(formatGuideDate(m.date))}</div><div class="ri-team">${escapeHtml(m.opponent)}</div><div class="ri-score ${cls}">${escapeHtml(m.score||'-')} ${escapeHtml(m.result||'')}</div></div>`;
+    }).join('')}</div>`;
+    const anchor=document.getElementById('guideSearchAnchor');
+    (anchor||document.querySelector('.guide-search')).before(sec);
+    sec.querySelectorAll('.recent-item').forEach(el=>el.addEventListener('click',()=>{ const id=Number(el.dataset.pointId); if(markers[id]){ selectPoint(id); map.flyTo(markers[id].getLatLng(),15); markers[id].openPopup(); } }));
+  }
+}
+
 /* ---------------- grade select (学年別表示) ---------------- */
 const gradeSelectEl = document.getElementById('gradeSelect');
 gradeSelectEl.innerHTML = GRADE_OPTIONS.map(g=>`<option value="${g}">${GRADE_LABELS[g]}</option>`).join('');
@@ -1098,7 +1238,8 @@ function refreshAllForGrade(){
     if(marker){
       marker.setPopupContent(popupHtml(p));
       const v = teamVisual(p.matches);
-      marker.setIcon(makeIcon(p.id===selectedId, v.color, v.skull));
+      const hasCurrent = matchesForGrade(p.matches).length > 0;
+      marker.setIcon(showOtherGrades && !hasCurrent ? makeOtherGradeIcon(p.id===selectedId) : makeIcon(p.id===selectedId, v.color, v.skull));
     }
   });
   Object.values(grounds).forEach(g=>{
@@ -1107,6 +1248,7 @@ function refreshAllForGrade(){
   });
   applyGroundGradeFilter();
   renderList();
+  updateGuide();
 }
 
 gradeSelectEl.addEventListener('change', (e)=>{
@@ -1115,6 +1257,15 @@ gradeSelectEl.addEventListener('change', (e)=>{
   refreshAllForGrade();
   toast(`表示学年: ${GRADE_LABELS[currentGrade]}`);
 });
+
+const otherGradeToggleEl = document.getElementById('otherGradeToggle');
+if(otherGradeToggleEl){
+  otherGradeToggleEl.addEventListener('change', e=>{
+    showOtherGrades=e.target.checked;
+    refreshAllForGrade();
+    toast(showOtherGrades ? '他学年の対戦情報を地図に追加表示' : '選択学年のみ表示');
+  });
+}
 
 /* ---------------- persistence ---------------- */
 async function loadPersisted(){
@@ -1191,13 +1342,16 @@ let activeTeamFilter = null; // 'green'|'yellow'|'orange'|'red'|'skull'|null
 
 function applyTeamFilter(){
   points.forEach(p=>{
-    const marker = markers[p.id];
+    const marker=markers[p.id];
     if(!marker) return;
-    const cat = teamCategory(p.matches);
-    const show = !activeTeamFilter || cat === activeTeamFilter;
-    const onMap = map.hasLayer(marker);
+    const hasCurrent=matchesForGrade(p.matches).length>0;
+    const hasOther=matchesForOtherGrades(p.matches).length>0;
+    let show=hasCurrent || (showOtherGrades && hasOther);
+    if(activeTeamFilter && hasCurrent) show=show && teamCategory(p.matches)===activeTeamFilter;
+    const onMap=map.hasLayer(marker);
     if(show && !onMap) marker.addTo(map);
     if(!show && onMap) map.removeLayer(marker);
+    marker.setOpacity(showOtherGrades && !hasCurrent ? 0.55 : 1);
   });
 }
 
@@ -1218,6 +1372,11 @@ function makeIcon(active, color, skull){
     iconSize: [16,16],
     iconAnchor: [8,8],
   });
+}
+
+function makeOtherGradeIcon(active){
+  const ring=active ? '0 0 0 2px #64748B, 0 1px 4px rgba(0,0,0,.25)' : '0 1px 3px rgba(0,0,0,.25)';
+  return L.divIcon({className:'',html:`<div style="width:13px;height:13px;border-radius:50%;background:#CBD5E1;border:2px solid #fff;box-shadow:${ring};display:flex;align-items:center;justify-content:center;font-size:7px;color:#475569;">他</div>`,iconSize:[17,17],iconAnchor:[8.5,8.5]});
 }
 
 /* ---------------- core operations ---------------- */
@@ -1296,19 +1455,31 @@ function popupHtml(p){
         </div>`).join('');
     const rateText = v.skull ? '全敗 💀' : `勝率${Math.round(v.rate)}%`;
     recordBlock = `<div class="precord">
-        <div class="precord-title">戦績（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}）: ${s.win}勝${s.draw}分${s.lose}敗（${rateText}）</div>
+        <div class="precord-title">戦績（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}）</div>
+        <div class="match-summary"><div class="match-stat"><b>${s.win}</b><span>勝</span></div><div class="match-stat"><b>${s.draw}</b><span>分</span></div><div class="match-stat"><b>${s.lose}</b><span>敗</span></div><div class="match-stat"><b>${Math.round(v.rate||0)}%</b><span>勝率</span></div></div>
         ${rows}
       </div>`;
   } else {
     recordBlock = `<div class="precord"><div style="font-size:11px;color:#5A6472;">${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}の戦績データなし</div></div>`;
   }
-  const linkLine = p.url ? `<div style="margin-top:6px;"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" style="font-size:11.5px;color:#2B6CB0;">🔗 チーム紹介ページ</a></div>` : '';
-  return `<b>${escapeHtml(p.name)}</b><span class="pcoord">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span>${noteLine}${recordBlock}${linkLine}`;
+  let otherGradeBlock='';
+  if(showOtherGrades){
+    const rows=GRADE_OPTIONS.filter(g=>g!==currentGrade).map(g=>{
+      const s=gradeSummary(p.matches,g);
+      return s.total ? `<div class="precord-row"><span>${escapeHtml(g)}（${escapeHtml(GRADE_LABELS[g])}）</span><span>${s.win}勝${s.draw}分${s.lose}敗</span><span>全${s.total}試合</span></div>` : '';
+    }).filter(Boolean).join('');
+    if(rows) otherGradeBlock=`<div class="precord"><div class="precord-title">他学年の戦績</div>${rows}</div>`;
+  }
+  const linkLine = p.url ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" class="popup-action">🔗 チーム紹介</a>` : '';
+  const mapLink = `<a href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}" target="_blank" rel="noopener" class="popup-action primary">📍 Google Maps</a>`;
+  return `<b>${escapeHtml(p.name)}</b><span class="pcoord">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span>${noteLine}${recordBlock}${otherGradeBlock}<div class="popup-actions">${mapLink}${linkLine}</div>`;
 }
 
 function renderMarker(p){
-  const v = teamVisual(p.matches);
-  const marker = L.marker([p.lat, p.lng], { icon: makeIcon(p.id===selectedId, v.color, v.skull) }).addTo(map);
+  const v=teamVisual(p.matches);
+  const hasCurrent=matchesForGrade(p.matches).length>0;
+  const icon=showOtherGrades && !hasCurrent ? makeOtherGradeIcon(p.id===selectedId) : makeIcon(p.id===selectedId,v.color,v.skull);
+  const marker=L.marker([p.lat,p.lng],{icon}).addTo(map);
   marker.bindPopup(popupHtml(p), { maxWidth: 260 });
   marker.bindTooltip(p.name, { permanent:true, direction:'top', offset:[0,-10], className:'name-label team-label' });
   marker.on('dragend', ()=>{
@@ -1975,6 +2146,7 @@ const SEED_MATCHES = [
   }
   persist();
   renderList();
+  updateGuide();
   fixMapSize();
   if(points.length){
     const b = L.latLngBounds(points.map(p=>[p.lat,p.lng]));
