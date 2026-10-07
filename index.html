@@ -997,8 +997,7 @@ function deconflictCoordinates(list){
     });
   });
 }
-window.addEventListener('load', fixMapSize);
-window.addEventListener('resize', fixMapSize);
+window.addEventListener('load', fixMapSize);window.addEventListener('resize', fixMapSize);
 window.addEventListener('orientationchange', ()=> setTimeout(fixMapSize, 300));
 if('ResizeObserver' in window){
   const ro = new ResizeObserver(()=> fixMapSize());
@@ -1997,7 +1996,6 @@ function downloadFile(filename, content, mime){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
 /* ---------------- seed data (initial team list) ---------------- */
 // No.18 REPLO は緯度・経度が未確定のため未収録（所在地: 愛知県 / 精度D 要確認）
 const SEED_DATA = [
