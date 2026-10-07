@@ -191,53 +191,66 @@ const SEED_MATCHES = [
 
 /* ---------------- init ---------------- */
 (async function init(){
-  await loadPersisted();
+  // まずチームを即時表示。外部CSV/グラウンド取得でエラーが起きても、
+  // 地図本体が「0地点」のまま止まらないようにする。
+  try{ await loadPersisted(); }catch(e){ console.error('persist load failed',e); }
+
   if(points.length===0){
-    SEED_DATA.forEach(([name,lat,lng,note,url])=> addPoint(name, lat, lng, {note, url}));
-  } else {
-    points.forEach(renderMarker);
+    try{
+      SEED_DATA.forEach(([name,lat,lng,note,url])=> addPoint(name, lat, lng, {note, url}));
+    }catch(e){
+      console.error('seed team initialization failed',e);
+      toast('チーム初期データの表示に失敗しました');
+    }
+  }else{
+    try{ points.forEach(renderMarker); }catch(e){ console.error('marker restore failed',e); }
   }
 
-  // 完全一致・近接する座標のチームを視覚的に分離
-  deconflictCoordinates(points);
-  points.forEach(p=>{
-    const m = markers[p.id];
-    if(m) m.setLatLng([p.lat, p.lng]);
-  });
+  try{
+    deconflictCoordinates(points);
+    points.forEach(p=>{ const m=markers[p.id]; if(m) m.setLatLng([p.lat,p.lng]); });
+  }catch(e){ console.error('coordinate adjustment failed',e); }
 
-  // グラウンドは Google Sheets の grounds タブを先に読み込み、
-  // その後に戦績を取り込む。これにより試合会場名を grounds マスタと紐付ける。
-  const groundsOk = await loadGroundsFromSheet();
-  const [liveOk] = await Promise.all([
-    loadMatchesFromSheet({silent:true}),
-    loadGroundMemosFromSheet(),
-  ]);
-  if(groundsOk) refreshGroundMarkers();
-  // 公開CSVが「取得成功」でも、列構成変更などで1件も取り込めない場合がある。
-  // その場合は画面を空にせず、内蔵の初期戦績へフォールバックする。
-  const hasImportedMatches = points.some(p=>(p.matches||[]).length>0);
-  if((!liveOk || !hasImportedMatches) && points.every(p=>(p.matches||[]).length===0)){
-    SEED_MATCHES.forEach(([team,date,category,score,result])=>{
-      const p = points.find(pp=>pp.name===team);
-      if(p) addMatch(p.id, {date, category, score, result}, {silent:true});
-    });
-    points.forEach(p=>{
-      const marker = markers[p.id];
-      if(marker){
-        marker.setPopupContent(popupHtml(p));
-        const v = teamVisual(p.matches);
-        marker.setIcon(makeIcon(p.id===selectedId, v.color, v.skull));
-      }
-    });
-  }
-  persist();
+  // ネットワーク処理の前に、チーム一覧と地図を確定表示する。
   renderList();
   updateGuide();
   fixMapSize();
   if(points.length){
-    const b = L.latLngBounds(points.map(p=>[p.lat,p.lng]));
-    map.fitBounds(b, {padding:[40,40]});
+    try{ map.fitBounds(L.latLngBounds(points.map(p=>[p.lat,p.lng])), {padding:[40,40]}); }catch(e){ console.error('map fit failed',e); }
   }
-  setTimeout(fixMapSize, 200);
-  setTimeout(declutterLabels, 400);
+
+  try{
+    const groundsOk = await loadGroundsFromSheet();
+    const [liveOk] = await Promise.all([
+      loadMatchesFromSheet({silent:true}),
+      loadGroundMemosFromSheet(),
+    ]);
+    if(groundsOk) refreshGroundMarkers();
+
+    const hasImportedMatches = points.some(p=>(p.matches||[]).length>0);
+    if((!liveOk || !hasImportedMatches) && points.every(p=>(p.matches||[]).length===0)){
+      SEED_MATCHES.forEach(([team,date,category,score,result])=>{
+        const p=points.find(pp=>pp.name===team);
+        if(p) addMatch(p.id,{date,category,score,result},{silent:true});
+      });
+      points.forEach(p=>{
+        const marker=markers[p.id];
+        if(marker){
+          marker.setPopupContent(popupHtml(p));
+          const v=teamVisual(p.matches);
+          marker.setIcon(makeIcon(p.id===selectedId,v.color,v.skull));
+        }
+      });
+    }
+  }catch(e){
+    console.error('external data initialization failed',e);
+    toast('外部データ取得に失敗しました。基本データを表示しています');
+  }
+
+  try{ persist(); }catch(e){ console.error('persist failed',e); }
+  renderList();
+  updateGuide();
+  fixMapSize();
+  setTimeout(fixMapSize,200);
+  setTimeout(declutterLabels,400);
 })();
