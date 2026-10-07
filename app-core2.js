@@ -495,7 +495,7 @@ function removeMatch(pointId, matchId){
   persist();
 }
 
-function openGroundByName(n){const g=grounds[n],m=groundMarkers[n];if(g&&m){map.setView([g.lat,g.lng],Math.max(map.getZoom(),13));m.openPopup()}}function openTeamByName(n){const p=findTeamPoint(n),m=p&&markers[p.id];if(p&&m){map.setView([p.lat,p.lng],Math.max(map.getZoom(),12));m.openPopup()}}function popupHtml(p){
+function popupHtml(p){
   const noteLine = p.note ? `<div style="font-size:11.5px;color:#5A6472;margin-top:2px;">${escapeHtml(p.note)}</div>` : '';
   const matches = matchesForGrade(p.matches);
   let recordBlock;
@@ -552,7 +552,7 @@ function renderMarker(p){
   const accuracy = teamAccuracy(p);
   const marker=L.marker([p.lat,p.lng],{icon}).addTo(map);
   marker.setOpacity(accuracy==='C' ? 0.72 : accuracy==='B' ? 0.88 : 1);
-  marker.bindPopup(popupHtml(p), { maxWidth: 260 });marker.on('popupopen',e=>e.popup.getElement().querySelectorAll('[data-ground-link]').forEach(el=>el.onclick=ev=>{ev.preventDefault();openGroundByName(el.dataset.groundLink)}));
+  marker.bindPopup(popupHtml(p), { maxWidth: 260 });
   marker.bindTooltip(p.name, { permanent:true, direction:'top', offset:[0,-10], className:'name-label team-label' });
   if(accuracy==='D') map.removeLayer(marker);
   marker.on('dragend', ()=>{
@@ -612,4 +612,3 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-/* ---------------- 
