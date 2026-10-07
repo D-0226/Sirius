@@ -887,6 +887,61 @@ const GROUND_VERIFIED_INFO = {
     caution:'月曜休園（祝日の場合開園）・年末年始休園',
     sourceUrl:'https://www.city.nisshin.lg.jp/kurashi/kyouiku/bunka/sports_shinko/kanren/7214.html', verifiedAt:'2026-10-07'
   }
+  , '豊明市大原公園G': {
+    address:'愛知県豊明市栄町大原1番地1', accuracy:'B',
+    parking:'一般11台＋身障者用1台（市公式情報）', toilet:'あり',
+    access:'名鉄名古屋本線 前後駅から徒歩約18分',
+    facilities:'広い芝生広場・公園内の広場。地域の運動会等で利用',
+    spectator:'芝生広場での観戦を想定。主催者案内を優先',
+    caution:'駐車台数が少ないため、試合時は乗り合わせ等を推奨',
+    sourceUrl:'https://www.city.toyoake.lg.jp/4058.htm', verifiedAt:'2026-10-07'
+  }
+  , 'WACTIVA ANJOグランド(人工芝)': {
+    address:'〒446-0061 愛知県安城市新田町稲恵2', accuracy:'B',
+    parking:'70台', toilet:'あり（施設内）',
+    access:'名鉄北安城駅から徒歩10分',
+    facilities:'屋外人工芝フットサル2面・ソサイチ1面、室内観覧席、屋根付きウッドデッキ、更衣室・シャワー室',
+    spectator:'室内観覧席・屋根付きウッドデッキあり',
+    caution:'試合形式・コート区分は大会主催者の案内を優先',
+    sourceUrl:'https://oasisfc.jp/anjo/', verifiedAt:'2026-10-07'
+  }
+  , '豊田市五ケ丘運動公園G': {
+    address:'〒471-0814 愛知県豊田市五ケ丘6丁目1番地', lat:35.061563, lng:137.19775, accuracy:'A',
+    parking:'80台', toilet:'多目的トイレ・乳幼児設備あり',
+    access:'おいでんバス「五ケ丘6丁目西」下車徒歩1分',
+    facilities:'球技場・多目的広場・マレットゴルフ場。球技場・多目的広場は照明あり',
+    spectator:'観戦時は施設の利用ルールと主催者案内を優先',
+    caution:'豊田市議会資料では運動広場を2027年4月1日付で廃止予定。大会会場として使用する場合は開催時点の施設状況を確認',
+    sourceUrl:'https://www.city.toyota.aichi.jp/shisei/shisetsu/sports/sonohoka/1027986/index.html', verifiedAt:'2026-10-07'
+  }
+  , '尾張旭市旭ケ丘G': {
+    address:'〒488-0085 愛知県尾張旭市旭ケ丘町濁池地内', lat:35.229435, lng:137.039926, accuracy:'B',
+    parking:'90台（無料）', toilet:'あり',
+    access:'名鉄瀬戸線 尾張旭駅から車で約10分',
+    facilities:'運動広場約10,000㎡・サッカー1面・ソフトボール2面・少年野球2面・更衣室',
+    spectator:'観戦席の詳細は主催者案内を優先',
+    caution:'夜間照明なし。利用時間は3〜9月7:00〜18:00、10〜2月7:00〜17:00',
+    sourceUrl:'https://www.hamada-sports.com/owariasahi/shisetsu_asahigaoka', verifiedAt:'2026-10-07'
+  }
+  , '半田ぴよログスポーツパークG': {
+    address:'〒475-0945 愛知県半田市池田町3-1-1', accuracy:'B',
+    parking:'無料167台（多目的グラウンド案内）', toilet:'あり（多目的グラウンド）',
+    access:'知多半島道路 半田中央ICから車で約5分',
+    facilities:'多目的グラウンド127m×144m、サッカー2面、陸上競技場等',
+    spectator:'陸上競技場・公園内施設の観覧ルールを主催者案内に合わせる',
+    caution:'大会・イベント時は駐車場混雑が想定されるため、主催者の駐車案内を確認',
+    sourceUrl:'https://www.city.handa.lg.jp/bunka/sports/1002825/1002831/1002836.html', verifiedAt:'2026-10-07'
+  }
+  , '一宮市立小信中島小学校': {
+    address:'愛知県一宮市小信中島字南平口59', lat:35.315699, lng:136.747245, accuracy:'A',
+    parking:'学校施設のため、試合主催者の案内を確認', toilet:'学校施設のため現地確認',
+    access:'名鉄尾西線 奥町駅・玉ノ井駅周辺',
+    facilities:'小学校グラウンド',
+    spectator:'学校施設利用時の入場・観戦ルールを主催者案内に従う',
+    caution:'学校施設のため、校内への立入・駐車は主催者の指示を優先',
+    sourceUrl:'https://www.city.ichinomiya.aichi.jp/shisetsu/hoikugakko/1008931/1009257.html', verifiedAt:'2026-10-07'
+  }
+
 };
 
 let grounds = {};        // name -> {name, address, lat, lng, accuracy, mapUrl, sourceUrl, updatedAt, matches:[]}
@@ -942,8 +997,7 @@ async function loadGroundsFromSheet(){
       };
     }
     console.log(`grounds loaded: ${Object.keys(grounds).length}`);
-    return true;
-  }catch(err){
+    return true;  }catch(err){
     console.error('grounds sheet fetch failed', err);
     toast('グラウンド情報の取得に失敗しました');
     return false;
@@ -997,7 +1051,8 @@ async function setGroundMemo(name, text){
     });
     return true;
   }catch(err){
-    console.error('ground memo write failed', err);    return false;
+    console.error('ground memo write failed', err);
+    return false;
   }
 }
 
@@ -1942,7 +1997,6 @@ function importRows(rows){
     if(unmatched.size) console.warn('未マッチのチーム名:', [...unmatched]);
     return;
   }
-
   // 拠点形式: name/名称, lat/緯度, lng/経度, note/メモ, url/リンク
   {
     const iName = col('name')>=0?col('name'):col('名称');
@@ -1997,6 +2051,7 @@ function buildPointCard(p){
           <button class="btn btn-ghost btn-sm" data-act="delmatch" data-mid="${m.id}" title="削除">✕</button>
         </div>`).join('')
     : '<div class="match-empty">戦績はまだ登録されていません</div>';
+
   const v = teamVisual(matches);
   const swatchHtml = v.skull
     ? `<span class="swatch" style="background:#1F2933;display:flex;align-items:center;justify-content:center;font-size:7px;">💀</span>`
