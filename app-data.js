@@ -146,7 +146,7 @@ function importRows(rows){
       if(!p){ noTeam++; unmatched.add(teamRaw); continue; }
       const key = matchKey(p.id, {date, category, score, result});
       if(existingKeys.has(key)){ dup++; continue; }
-      addMatch(p.id, {date, category, score, result}, {silent:true});
+      addMatch(p.id, {date, category, score, result, place:iPlace>=0?String(r[iPlace]||'').trim():''}, {silent:true});
       existingKeys.add(key);
       touched.add(p.id);
       added++;
