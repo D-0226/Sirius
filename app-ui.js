@@ -213,7 +213,10 @@ const SEED_MATCHES = [
     loadGroundMemosFromSheet(),
   ]);
   if(groundsOk) refreshGroundMarkers();
-  if(!liveOk && points.every(p=>(p.matches||[]).length===0)){
+  // 公開CSVが「取得成功」でも、列構成変更などで1件も取り込めない場合がある。
+  // その場合は画面を空にせず、内蔵の初期戦績へフォールバックする。
+  const hasImportedMatches = points.some(p=>(p.matches||[]).length>0);
+  if((!liveOk || !hasImportedMatches) && points.every(p=>(p.matches||[]).length===0)){
     SEED_MATCHES.forEach(([team,date,category,score,result])=>{
       const p = points.find(pp=>pp.name===team);
       if(p) addMatch(p.id, {date, category, score, result}, {silent:true});
