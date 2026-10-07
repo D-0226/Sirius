@@ -128,6 +128,16 @@
   .popup-actions{display:flex;gap:6px;margin-top:8px;}
   .popup-action{display:inline-block;text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:11px;color:var(--ink);background:#fff;}
   .popup-action.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .ground-info{margin-top:7px;padding:7px 8px;background:#f7f7f4;border:1px solid var(--line);border-radius:7px;}
+  .ground-info-row{display:flex;gap:6px;align-items:flex-start;margin:3px 0;font-size:11px;line-height:1.45;}
+  .ground-info-label{flex:0 0 58px;color:var(--ink-soft);font-size:10px;font-weight:700;}
+  .accuracy-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 6px;border-radius:5px;font-size:11px;font-weight:800;color:#fff;vertical-align:middle;}
+  .accuracy-A{background:#16803c}.accuracy-B{background:#3578a8}.accuracy-C{background:#9a6b00}.accuracy-D{background:#777}
+  .accuracy-desc{margin-left:4px;color:var(--ink-soft);}
+  .ground-source{font-size:10px;color:var(--ink-soft);margin-top:5px;}
+  .ground-source a{color:var(--blue);text-decoration:none;}
+  .ground-source a:hover{text-decoration:underline;}
+  .search-result-item .sr-type{font-size:9px;color:var(--ink-soft);font-weight:700;}
   .match-summary{display:flex;gap:5px;margin:6px 0 2px;}
   .match-stat{flex:1;text-align:center;border:1px solid var(--line);border-radius:6px;padding:5px 2px;background:#fff;}
   .match-stat b{display:block;font-size:13px}.match-stat span{font-size:9px;color:var(--ink-soft);}
@@ -775,6 +785,110 @@ let currentTile = makeTileLayer('pale').addTo(map);
 // GROUND_COORDS は廃止し、地図上のグラウンド情報はこのシートを唯一の参照元とする。
 const GROUNDS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTEA-Qh6qyA6ODIbsqqYmWh7AfABhhpJbpXLi571XVoj86uHFJaWgDYt3vbVKOm9gO3Y9i5Vxjqesub/pub?gid=1698737875&single=true&output=csv';
 
+// 公式・自治体等で確認できたグラウンド情報の補完。
+// Google Sheetsのgroundsマスタを置き換えず、確認済みの項目だけを上書き補完する。
+const GROUND_VERIFIED_INFO = {
+  '木曽川運動場G': {
+    address:'愛知県一宮市木曽川町黒田字北宿三の切1番地1', lat:35.34715938, lng:136.77356092, accuracy:'A',
+    parking:'90台（テニスコート利用者と共用）',
+    toilet:'情報未確認', access:'黒田駅 徒歩約10分／木曽川駅 徒歩約12分',
+    facilities:'サッカー利用可・夜間照明あり',
+    spectator:'観戦場所の詳細は現地確認',
+    caution:'駐車場はグラウンド利用者・テニスコート利用者共用',
+    sourceUrl:'https://www.city.ichinomiya.aichi.jp/shisetsu/1008918/1044560/1009377.html', verifiedAt:'2026-10-07'
+  },
+  'ひかりグランド': {
+    address:'〒480-0305 愛知県春日井市坂下町6丁目782-10', accuracy:'B',
+    parking:'あり（専用グラウンド）', toilet:'情報未確認',
+    access:'国道19号「坂下町6丁目南」交差点から約800m先を左折後、約400m',
+    facilities:'フットボール専用人工芝',
+    spectator:'人工芝専用グラウンド。観戦エリアは現地案内に従う',
+    caution:'入口は南側、出口は北側。サッカー関係者以外も通行するため徐行・譲り合い',
+    sourceUrl:'https://ascshineburg.info/cms/%E3%81%B2%E3%81%8B%E3%82%8Afc%E3%82%B0%E3%83%A9%E3%82%A6%E3%83%B3%E3%83%89%E5%87%BA%E5%85%A5%E5%8F%A3%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/', verifiedAt:'2026-10-07'
+  },
+  '碧南2号地運動広場G': {
+    address:'〒447-0824 愛知県碧南市港南町1丁目1番地1', accuracy:'A',
+    parking:'あり（トイレのある南側駐車場を推奨）', toilet:'あり',
+    access:'港南町1丁目交差点西側',
+    facilities:'サッカー利用実績あり',
+    spectator:'南側駐車場側のトイレ位置を確認してから観戦場所へ',
+    caution:'満車時はグラウンド東側隣接道路を北進した舗装駐車場を利用。路上駐車不可',
+    sourceUrl:'https://hekinanfc.net/access/', verifiedAt:'2026-10-07'
+  },
+  '若園運動広場G': {
+    address:'〒473-0916 愛知県豊田市吉原町穴田1', accuracy:'B',
+    parking:'111台', toilet:'多目的トイレあり',
+    access:'名鉄三河線 若林駅から徒歩約22分',
+    facilities:'スポーツ施設・予約対象',
+    spectator:'身体障がい者用駐車場あり',
+    caution:'月曜休場（祝日除く）',
+    sourceUrl:'https://www.city.toyota.aichi.jp/shisei/shisetsu/sports/sonohoka/1006796/index.html', verifiedAt:'2026-10-07'
+  },
+  '池浦西公園G': {
+    address:'〒446-0066 愛知県安城市池浦町狐穴15番1', accuracy:'B',
+    parking:'あり', toilet:'あり（多目的トイレあり）',
+    access:'安城市池浦町',
+    facilities:'水道あり・複合遊具あり',
+    spectator:'芝生エリアの観戦エリア利用など、主催者案内を優先',
+    caution:'自動販売機なし／日影が少ないという大会案内あり。必要に応じて日除けを準備',
+    sourceUrl:'https://www.city.anjo.aichi.jp/shisei/shisetsu/shisetsu1081.html', verifiedAt:'2026-10-07'
+  },
+  'はままつフルーツパーク時之栖G': {
+    address:'〒431-2102 静岡県浜松市浜名区都田町4263-1', accuracy:'B',
+    parking:'800台・無料', toilet:'あり（園内施設）',
+    access:'新東名浜松SAスマートICから約5分／フルーツパーク駅 徒歩約8分',
+    facilities:'サッカー場あり・事前予約制',
+    spectator:'施設内の観覧場所・利用ルールに従う',
+    caution:'開園時間は原則9:00～17:00。営業・施設利用時間は事前確認',
+    sourceUrl:'https://hamamatsu-fp.co.jp/guide/', verifiedAt:'2026-10-07'
+  },
+  '中部大学スポーツパーク日進G': {
+    address:'〒470-0111 愛知県日進市米野木町南山711-1', accuracy:'B',
+    parking:'あり（約30台との案内あり）', toilet:'情報未確認',
+    access:'日進市米野木町南山',
+    facilities:'人工芝・LED照明完備',
+    spectator:'観戦エリアは大会・主催者案内を優先',
+    caution:'自家用車利用時は駐車台数に注意',
+    sourceUrl:'https://aichi.barcaacademy.com/access.html', verifiedAt:'2026-10-07'
+  },
+  'まるはスポーツパークG': {
+    address:'〒470-2305 愛知県知多郡武豊町下山ノ田64-46', accuracy:'B',
+    parking:'無料駐車場あり（最新案内では普通車46台）', toilet:'あり（クラブハウス）',
+    access:'南知多道路 半田ICから約10分／上ゲ駅から約2km',
+    facilities:'人工芝サッカーフルコート・フットサル3面・屋根付き観覧席（100名収容）',
+    spectator:'屋根付き観覧席あり',
+    caution:'2026年内は月曜定休。予約状況・営業時間を事前確認',
+    sourceUrl:'https://pfc.or.jp/main/newdetail/22', verifiedAt:'2026-10-07'
+  },
+  '愛知県森林公園運動広場G': {
+    address:'〒488-8555 愛知県尾張旭市大字新居5182-1', accuracy:'B',
+    parking:'あり', toilet:'情報未確認',
+    access:'東名守山PA/スマートICから約10分',
+    facilities:'愛知県森林公園内の運動施設',
+    spectator:'公園内施設の利用ルールに従う',
+    caution:'運動広場の利用時間・予約条件は事前確認',
+    sourceUrl:'https://www.aichinow.pref.aichi.jp/spots/detail/1474/', verifiedAt:'2026-10-07'
+  },
+  '守山多目的グランド': {
+    address:'〒463-0807 愛知県名古屋市守山区青山台718', accuracy:'B',
+    parking:'情報未確認', toilet:'情報未確認',
+    access:'名古屋市守山区青山台',
+    facilities:'サッカー活動場所として確認',
+    spectator:'観戦場所・駐車方法は主催者案内を優先',
+    caution:'周辺道路・近隣施設への迷惑駐車に注意',
+    sourceUrl:'https://el-miwa.wixsite.com/el-miwa/blank-6', verifiedAt:'2026-10-07'
+  },
+  '日進総合公園スポーツ広場G': {
+    address:'〒470-0104 愛知県日進市岩藤町大清水919-1', lat:35.147438, lng:137.070553, accuracy:'A',
+    parking:'あり', toilet:'あり',
+    access:'くるりんばす「総合運動公園西」徒歩約8分',
+    facilities:'スポーツ広場・野球場・テニスコート・プール等',
+    spectator:'観覧席ありとの施設情報あり',
+    caution:'月曜休園（祝日の場合開園）・年末年始休園',
+    sourceUrl:'https://www.city.nisshin.lg.jp/kurashi/kyouiku/bunka/sports_shinko/kanren/7214.html', verifiedAt:'2026-10-07'
+  }
+};
+
 let grounds = {};        // name -> {name, address, lat, lng, accuracy, mapUrl, sourceUrl, updatedAt, matches:[]}
 let groundMarkers = {};  // name -> leaflet marker
 let groundsVisible = true;
@@ -812,14 +926,18 @@ async function loadGroundsFromSheet(){
       const lat=parseFloat(String(r[iLat]??'').trim());
       const lng=parseFloat(String(r[iLng]??'').trim());
       if(!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const verified = GROUND_VERIFIED_INFO[name] || {};
       grounds[name] = {
         name,
-        address: iAddress>=0 ? String(r[iAddress]||'').trim() : '',
-        lat, lng,
-        accuracy: iAccuracy>=0 ? String(r[iAccuracy]||'').trim() : '',
+        address: verified.address || (iAddress>=0 ? String(r[iAddress]||'').trim() : ''),
+        lat: Number.isFinite(verified.lat) ? verified.lat : lat,
+        lng: Number.isFinite(verified.lng) ? verified.lng : lng,
+        accuracy: verified.accuracy || (iAccuracy>=0 ? String(r[iAccuracy]||'').trim() : ''),
         mapUrl: iMap>=0 ? String(r[iMap]||'').trim() : '',
-        sourceUrl: iSource>=0 ? String(r[iSource]||'').trim() : '',
-        updatedAt: iUpdated>=0 ? String(r[iUpdated]||'').trim() : '',
+        sourceUrl: verified.sourceUrl || (iSource>=0 ? String(r[iSource]||'').trim() : ''),
+        updatedAt: verified.verifiedAt || (iUpdated>=0 ? String(r[iUpdated]||'').trim() : ''),
+        parking: verified.parking || '', toilet: verified.toilet || '', access: verified.access || '',
+        facilities: verified.facilities || '', spectator: verified.spectator || '', caution: verified.caution || '',
         matches: []
       };
     }
@@ -879,9 +997,22 @@ async function setGroundMemo(name, text){
     });
     return true;
   }catch(err){
-    console.error('ground memo write failed', err);
-    return false;
+    console.error('ground memo write failed', err);    return false;
   }
+}
+
+function groundAccuracyLabel(a){
+  const x=(a||'').toString().trim().toUpperCase();
+  return ({A:'正確な場所',B:'公式活動場所・主会場',C:'市町村・地域の代表地点',D:'位置未確認'})[x] || '未設定';
+}
+function groundAccuracyBadge(a){
+  const x=(a||'').toString().trim().toUpperCase();
+  const cls=['A','B','C','D'].includes(x) ? x : 'D';
+  return `<span class="accuracy-badge accuracy-${cls}">${escapeHtml(x || '?')}</span>`;
+}
+function groundMarkerOpacity(g){
+  const a=(g.accuracy||'').trim().toUpperCase();
+  return a==='A' ? 1 : a==='B' ? 0.9 : a==='C' ? 0.68 : a==='D' ? 0.45 : 0.8;
 }
 
 function groundPopupHtml(g){
@@ -905,9 +1036,23 @@ function groundPopupHtml(g){
   const groundMapLink = g.mapUrl
     ? `<div class="popup-actions"><a href="${escapeHtml(g.mapUrl)}" target="_blank" rel="noopener" class="popup-action primary">📍 Google Mapsで開く</a></div>`
     : `<div class="popup-actions"><a href="https://www.google.com/maps/search/?api=1&query=${g.lat},${g.lng}" target="_blank" rel="noopener" class="popup-action primary">📍 Google Mapsで開く</a></div>`;
-  const address = g.address ? `<div style="font-size:11px;color:#5A6472;margin-top:2px;">${escapeHtml(g.address)}</div>` : '';
-  const accuracy = g.accuracy ? `<span style="font-size:10px;color:#5A6472;">位置精度：${escapeHtml(g.accuracy)}</span>` : '';
-  return `<b>⚽ ${escapeHtml(g.name)}</b>${address}${accuracy}
+  const address = g.address ? escapeHtml(g.address) : '住所情報なし';
+  const accuracy = (g.accuracy||'').trim().toUpperCase();
+  const sourceLink = g.sourceUrl ? `<a href="${escapeHtml(g.sourceUrl)}" target="_blank" rel="noopener">情報元を確認</a>` : '';
+  const infoRows = [
+    ['駐車場',g.parking], ['トイレ',g.toilet], ['アクセス',g.access],
+    ['施設',g.facilities], ['観戦',g.spectator], ['注意',g.caution]
+  ].filter(x=>x[1]).map(x=>`<div class="ground-info-row"><span class="ground-info-label">${x[0]}</span><span>${escapeHtml(x[1])}</span></div>`).join('');
+  const verifiedCount = [g.address,g.parking,g.toilet,g.access,g.facilities,g.spectator,g.caution].filter(Boolean).length;
+  return `<b>⚽ ${escapeHtml(g.name)}</b>
+    <div class="ground-info">
+      <div class="ground-info-row"><span class="ground-info-label">位置精度</span><span>${groundAccuracyBadge(accuracy)}<span class="accuracy-desc">${escapeHtml(groundAccuracyLabel(accuracy))}</span></span></div>
+      <div class="ground-info-row"><span class="ground-info-label">住所</span><span>${address}</span></div>
+      ${infoRows}
+      <div class="ground-info-row"><span class="ground-info-label">情報充実度</span><span>${verifiedCount}/7項目</span></div>
+      ${g.updatedAt ? `<div class="ground-info-row"><span class="ground-info-label">最終確認</span><span>${escapeHtml(g.updatedAt)}</span></div>` : ''}
+      ${sourceLink ? `<div class="ground-source">${sourceLink}</div>` : ''}
+    </div>
     <div class="precord">
       <div class="precord-title">試合実績 ${matches.length}件（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}）</div>
       ${rows || '<div style="font-size:11px;color:#5A6472;">記録なし</div>'}
@@ -939,8 +1084,10 @@ function applyGroundGradeFilter(){
 
 function renderGroundMarker(g){
   const marker = L.marker([g.lat, g.lng], { icon: groundIcon() });
-  marker.bindPopup(groundPopupHtml(g), { maxWidth: 260 });
-  marker.bindTooltip(g.name, { permanent:true, direction:'top', offset:[0,-12], className:'name-label ground-label' });
+  marker.setOpacity(groundMarkerOpacity(g));
+  marker.bindPopup(groundPopupHtml(g), { maxWidth: 300 });
+  const acc=(g.accuracy||'').trim().toUpperCase();
+  marker.bindTooltip(`${g.name}${acc ? ' ['+acc+']' : ''}`, { permanent:true, direction:'top', offset:[0,-12], className:'name-label ground-label' });
   marker.on('popupopen', (e)=>{
     const container = e.popup.getElement();
     const btn = container.querySelector('[data-act="save-ground-memo"]');
@@ -997,7 +1144,8 @@ function deconflictCoordinates(list){
     });
   });
 }
-window.addEventListener('load', fixMapSize);window.addEventListener('resize', fixMapSize);
+window.addEventListener('load', fixMapSize);
+window.addEventListener('resize', fixMapSize);
 window.addEventListener('orientationchange', ()=> setTimeout(fixMapSize, 300));
 if('ResizeObserver' in window){
   const ro = new ResizeObserver(()=> fixMapSize());
@@ -1163,8 +1311,13 @@ function runMapSearch(rawQuery){
   });
   Object.values(grounds).forEach(g=>{
     const memo = getGroundMemo(g.name);
-    const hay = normalizeSearchText(g.name + ' ' + memo);
-    if(hay.includes(q)) results.push({ type:'ground', name:g.name, sub:`⚽ 会場${memo ? ' ｜ メモあり' : ''}`, ref:g, score: hay.indexOf(q) });
+    const hayRaw = [g.name, g.address, g.accuracy, g.updatedAt, g.parking, g.toilet, g.access, g.facilities, g.spectator, g.caution, memo].filter(Boolean).join(' ');
+    const hay = normalizeSearchText(hayRaw);
+    if(hay.includes(q)) {
+      const acc=(g.accuracy||'').trim().toUpperCase();
+      const place=g.address || '住所情報なし';
+      results.push({ type:'ground', name:g.name, sub:`⚽ 会場${acc ? ' ｜ 精度'+acc : ''}${memo ? ' ｜ メモあり' : ''} ｜ ${place}`, ref:g, score: hay.indexOf(q) });
+    }
   });
   results.sort((a,b)=>(a.score||0)-(b.score||0));
 
@@ -1178,7 +1331,7 @@ function runMapSearch(rawQuery){
   results.slice(0,25).forEach(r=>{
     const item = document.createElement('div');
     item.className = 'search-result-item';
-    item.innerHTML = `<span class="sr-name">${escapeHtml(r.name)}</span><span class="sr-sub">${escapeHtml(r.sub)}</span>`;
+    item.innerHTML = `<span class="sr-type">${r.type==='ground' ? '⚽ グラウンド' : 'チーム'}</span><span class="sr-name">${escapeHtml(r.name)}</span><span class="sr-sub">${escapeHtml(r.sub)}</span>`;
     item.addEventListener('click', ()=>{
       let marker, lat, lng;
       if(r.type==='team'){
@@ -1844,7 +1997,6 @@ function buildPointCard(p){
           <button class="btn btn-ghost btn-sm" data-act="delmatch" data-mid="${m.id}" title="削除">✕</button>
         </div>`).join('')
     : '<div class="match-empty">戦績はまだ登録されていません</div>';
-
   const v = teamVisual(matches);
   const swatchHtml = v.skull
     ? `<span class="swatch" style="background:#1F2933;display:flex;align-items:center;justify-content:center;font-size:7px;">💀</span>`
@@ -1996,6 +2148,7 @@ function downloadFile(filename, content, mime){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
 /* ---------------- seed data (initial team list) ---------------- */
 // No.18 REPLO は緯度・経度が未確定のため未収録（所在地: 愛知県 / 精度D 要確認）
 const SEED_DATA = [
