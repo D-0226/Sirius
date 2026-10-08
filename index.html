@@ -142,11 +142,16 @@
   .match-stat{flex:1;text-align:center;border:1px solid var(--line);border-radius:6px;padding:5px 2px;background:#fff;}
   .match-stat b{display:block;font-size:13px}.match-stat span{font-size:9px;color:var(--ink-soft);}
   @media(max-width:600px){
-    .guide-strip{grid-template-columns:1fr 1fr;padding:7px 8px;gap:6px;}
-    .guide-card:first-child{grid-column:1 / -1;}
-    .guide-card{padding:7px 9px;}
+    /* スマホでは地図を優先し、対戦チームと今季戦績を1段に圧縮 */
+    .guide-strip{grid-template-columns:1fr 1fr;padding:5px 8px;gap:5px;}
+    .guide-card:first-child{grid-column:auto;}
+    .guide-card{padding:5px 7px;border-radius:7px;}
+    .guide-card .gc-label{font-size:9px;margin-bottom:1px;}
+    .guide-card .gc-main{font-size:12px;line-height:1.25;}
+    .guide-card .gc-sub{font-size:9px;margin-top:1px;}
     .guide-section{padding:6px 8px;}
-    .guide-search{padding:7px 8px;}
+    .guide-search{padding:5px 8px;}
+    .guide-search #mapSearchInput{padding:7px 9px;font-size:12px;}
     .map-quick-help{bottom:8px;left:8px;font-size:9px;}
   }
 
