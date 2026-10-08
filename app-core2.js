@@ -100,8 +100,23 @@ document.querySelectorAll('[data-collapse-toggle]').forEach(el=>{
 
 document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=>{
   groundsVisible = !groundsVisible;
-  document.getElementById('btnToggleGroundsVisible').classList.toggle('active', groundsVisible);
-  applyGroundGradeFilter();
+  const btn=document.getElementById('btnToggleGroundsVisible');
+  btn.classList.toggle('active', groundsVisible);
+  document.body.classList.toggle('ground-mode', groundsVisible);
+  if(groundsVisible){
+    document.body.classList.remove('team-labels-visible');
+    const teamBtn=document.getElementById('btnToggleTeamLabels');
+    if(teamBtn) teamBtn.classList.remove('active');
+    applyGroundGradeFilter();
+    scheduleDeclutter();
+    const visibleCount=Object.values(grounds).filter(g=>groundHasCurrentGradeMatches(g) || (showOtherGrades && groundHasOtherGradeMatches(g))).length;
+    toast(`会場表示：${visibleCount}会場。⚽をタップしてください`);
+  }else{
+    document.body.classList.remove('ground-mode');
+    applyGroundGradeFilter();
+    scheduleDeclutter();
+    toast('会場表示を解除しました');
+  }
 });
 
 const TILE_ORDER = ['std','pale','blank','photo'];
