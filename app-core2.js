@@ -517,11 +517,14 @@ function popupHtml(p){
     const v = teamVisual(matches);
     const rows = matches.slice()
       .sort((a,b)=> (b.date||'').localeCompare(a.date||''))
-      .map(m=>`<div class="precord-row">
+      .map(m=>{
+        const place=m.place ? `<a href="#" data-ground-link="${escapeHtml(m.place)}" style="color:#2563EB;text-decoration:none;">${escapeHtml(m.place)}</a>` : '';
+        return `<div class="precord-row">
           <span>${escapeHtml(m.date||'')}${m.category ? ' ' + escapeHtml(m.category) : ''}</span>
-          <span class="pmono">${escapeHtml(m.score||'')}</span>
-          <span>${escapeHtml(m.result||'')}</span>
-        </div>`).join('');
+          <span class="pmono">${escapeHtml(m.score||'')} ${escapeHtml(m.result||'')}</span>
+          ${place ? `<span style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${place}</span>` : ''}
+        </div>`;
+      }).join('');
     const rateText = v.skull ? '全敗 💀' : `勝率${Math.round(v.rate)}%`;
     recordBlock = `<div class="precord">
         <div class="precord-title">戦績（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}）</div>
@@ -565,7 +568,13 @@ function renderMarker(p){
   const accuracy = teamAccuracy(p);
   const marker=L.marker([p.lat,p.lng],{icon}).addTo(map);
   marker.setOpacity(accuracy==='C' ? 0.72 : accuracy==='B' ? 0.88 : 1);
-  marker.bindPopup(popupHtml(p), { maxWidth: 260 });
+  marker.bindPopup(popupHtml(p), { maxWidth: 320 });
+  marker.on('popupopen', (e)=>{
+    const container=e.popup.getElement();
+    container.querySelectorAll('[data-ground-link]').forEach(el=>{
+      el.onclick=ev=>{ev.preventDefault();openGroundByName(el.dataset.groundLink);}
+    });
+  });
   marker.bindTooltip(p.name, { permanent:true, direction:'top', offset:[0,-10], className:'name-label team-label' });
   if(accuracy==='D') map.removeLayer(marker);
   marker.on('dragend', ()=>{
