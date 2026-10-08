@@ -315,49 +315,49 @@ function groundMarkerOpacity(g){
 }
 
 function groundPopupHtml(g){
-  const matches = matchesForGrade(g.matches);
-  const rows = matches.slice()
-    .sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-    .map(m=>`<div class="precord-row">
-        <span>${escapeHtml(m.date||'')}${m.category ? ' '+escapeHtml(m.category) : ''}</span>
-        <span class="pmono">vs ${escapeHtml(m.opponent||'')}</span>
-        <span>${escapeHtml(m.score||'')} ${escapeHtml(m.result||'')}</span>
-      </div>`).join('');
+  const matches = matchesForGrade(g.matches).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const wins=matches.filter(m=>m.result==='勝').length, draws=matches.filter(m=>m.result==='分').length, loses=matches.filter(m=>m.result==='敗').length;
+  const rows=matches.map(m=>{
+    const opponent=m.opponent||'';
+    const op=opponent ? `<a href="#" data-team-link="${escapeHtml(opponent)}" style="color:#2563EB;text-decoration:none;font-weight:600;">${escapeHtml(opponent)}</a>` : '-';
+    return `<div class="precord-row"><span>${escapeHtml(m.date||'')}${m.category?' '+escapeHtml(m.category):''}</span><span class="pmono">vs ${op}</span><span>${escapeHtml(m.score||'')} ${escapeHtml(m.result||'')}</span></div>`;
+  }).join('');
   let otherGradeGroundBlock='';
   if(showOtherGrades){
-    const rows=GRADE_OPTIONS.filter(gr=>gr!==currentGrade).map(gr=>{
+    const rs=GRADE_OPTIONS.filter(gr=>gr!==currentGrade).map(gr=>{
       const ms=(g.matches||[]).filter(m=>(m.category||'').trim()===gr);
-      return ms.length ? `<div class="precord-row"><span>${escapeHtml(gr)}（${escapeHtml(GRADE_LABELS[gr])}）</span><span>全${ms.length}試合</span><span></span></div>` : '';
+      return ms.length ? `<div class="precord-row"><span>${escapeHtml(gr)}（${escapeHtml(GRADE_LABELS[gr])}）</span><span>全${ms.length}試合</span><span></span></div>`:'';
     }).filter(Boolean).join('');
-    if(rows) otherGradeGroundBlock=`<div class="precord"><div class="precord-title">他学年の会場実績</div>${rows}</div>`;
+    if(rs) otherGradeGroundBlock=`<div class="precord"><div class="precord-title">他学年の会場実績</div>${rs}</div>`;
   }
-  const memoPosts=getGroundMemoPosts(g.name).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));const memoRows=memoPosts.map(x=>'<div class="ground-memo-post"><div class="ground-memo-meta">'+escapeHtml(x.date?new Date(x.date).toLocaleDateString('ja-JP'):'')+(x.poster?' ・ '+escapeHtml(x.poster):'')+'</div><div>'+escapeHtml(x.memo)+'</div></div>').join('');
-  const groundMapLink = g.mapUrl
+  const memoPosts=getGroundMemoPosts(g.name).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const memoRows=memoPosts.map(x=>'<div class="ground-memo-post"><div class="ground-memo-meta">'+escapeHtml(x.date?new Date(x.date).toLocaleDateString('ja-JP'):'')+(x.poster?' ・ '+escapeHtml(x.poster):'')+'</div><div>'+escapeHtml(x.memo)+'</div></div>').join('');
+  const groundMapLink=g.mapUrl
     ? `<div class="popup-actions"><a href="${escapeHtml(g.mapUrl)}" target="_blank" rel="noopener" class="popup-action primary">📍 Google Mapsで開く</a></div>`
     : `<div class="popup-actions"><a href="https://www.google.com/maps/search/?api=1&query=${g.lat},${g.lng}" target="_blank" rel="noopener" class="popup-action primary">📍 Google Mapsで開く</a></div>`;
-  const address = g.address ? escapeHtml(g.address) : '住所情報なし';
-  const accuracy = (g.accuracy||'').trim().toUpperCase();
-  const sourceLink = g.sourceUrl ? `<a href="${escapeHtml(g.sourceUrl)}" target="_blank" rel="noopener">情報元を確認</a>` : '';
-  const infoRows = [
-    ['駐車場',g.parking], ['トイレ',g.toilet], ['アクセス',g.access],
-    ['施設',g.facilities], ['観戦',g.spectator], ['注意',g.caution]
-  ].filter(x=>x[1]).map(x=>`<div class="ground-info-row"><span class="ground-info-label">${x[0]}</span><span>${escapeHtml(x[1])}</span></div>`).join('');
-  const verifiedCount = [g.address,g.parking,g.toilet,g.access,g.facilities,g.spectator,g.caution].filter(Boolean).length;
+  const address=g.address?escapeHtml(g.address):'住所情報なし', accuracy=(g.accuracy||'').trim().toUpperCase();
+  const sourceLink=g.sourceUrl?`<a href="${escapeHtml(g.sourceUrl)}" target="_blank" rel="noopener">情報元を確認</a>`:'';
+  const infoRows=[['駐車場',g.parking],['トイレ',g.toilet],['アクセス',g.access],['施設',g.facilities],['観戦',g.spectator],['注意',g.caution]].filter(x=>x[1]).map(x=>`<div class="ground-info-row"><span class="ground-info-label">${x[0]}</span><span>${escapeHtml(x[1])}</span></div>`).join('');
+  const verifiedCount=[g.address,g.parking,g.toilet,g.access,g.facilities,g.spectator,g.caution].filter(Boolean).length;
+  const summary=matches.length?`<div class="match-summary"><div class="match-stat"><b>${wins}</b><span>勝</span></div><div class="match-stat"><b>${draws}</b><span>分</span></div><div class="match-stat"><b>${loses}</b><span>敗</span></div><div class="match-stat"><b>${matches.length}</b><span>試合</span></div></div>`:'';
+  const hint=matches.length?'<div style="font-size:10.5px;color:#64748B;margin:4px 0 6px;">対戦相手をタップすると、相手チームの位置・情報を表示します。</div>':'';
   return `<b>⚽ ${escapeHtml(g.name)}</b>
     <div class="ground-info">
       <div class="ground-info-row"><span class="ground-info-label">位置精度</span><span>${groundAccuracyBadge(accuracy)}<span class="accuracy-desc">${escapeHtml(groundAccuracyLabel(accuracy))}</span></span></div>
       <div class="ground-info-row"><span class="ground-info-label">住所</span><span>${address}</span></div>
       ${infoRows}
       <div class="ground-info-row"><span class="ground-info-label">情報充実度</span><span>${verifiedCount}/7項目</span></div>
-      ${g.updatedAt ? `<div class="ground-info-row"><span class="ground-info-label">最終確認</span><span>${escapeHtml(g.updatedAt)}</span></div>` : ''}
-      ${sourceLink ? `<div class="ground-source">${sourceLink}</div>` : ''}
+      ${g.updatedAt?`<div class="ground-info-row"><span class="ground-info-label">最終確認</span><span>${escapeHtml(g.updatedAt)}</span></div>`:''}
+      ${sourceLink?`<div class="ground-source">${sourceLink}</div>`:''}
     </div>
     <div class="precord">
-      <div class="precord-title">試合実績 ${matches.length}件（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}）</div>
-      ${rows || '<div style="font-size:11px;color:#5A6472;">記録なし</div>'}
+      <div class="precord-title">この会場の観戦履歴（${escapeHtml(GRADE_LABELS[currentGrade]||currentGrade)}）</div>
+      ${summary}${hint}
+      ${rows||'<div style="font-size:11px;color:#5A6472;">この学年の試合記録はありません</div>'}
     </div>
     ${otherGradeGroundBlock}
-    <div class="ground-memo-section"><div class="precord-title">みんなの観戦メモ \${memoPosts.length?"("+memoPosts.length+"件)":""}</div>\${memoRows||"<div style=\"font-size:11px;color:#5A6472;\">まだ投稿はありません</div>"}<textarea class="ground-memo-input" placeholder="駐車場・アクセス・観戦場所などを投稿" style="width:100%;min-height:50px;font-size:11px;padding:5px;border:1px solid #DDD8CB;border-radius:4px;box-sizing:border-box;margin-top:5px;"></textarea><input class="ground-memo-poster" placeholder="投稿者（任意）" style="width:100%;font-size:11px;padding:5px;border:1px solid #DDD8CB;border-radius:4px;box-sizing:border-box;margin-top:4px;"><button class="btn btn-sm btn-primary" data-act="add-ground-memo" style="margin-top:4px;width:100%;">メモを投稿</button></div>${groundMapLink}`;
+    <div class="ground-memo-section"><div class="precord-title">みんなの観戦メモ ${memoPosts.length?'('+memoPosts.length+'件)':''}</div>${memoRows||'<div style="font-size:11px;color:#5A6472;">まだ投稿はありません</div>'}<textarea class="ground-memo-input" placeholder="駐車場・アクセス・観戦場所などを投稿" style="width:100%;min-height:50px;font-size:11px;padding:5px;border:1px solid #DDD8CB;border-radius:4px;box-sizing:border-box;margin-top:5px;"></textarea><input class="ground-memo-poster" placeholder="投稿者（任意）" style="width:100%;font-size:11px;padding:5px;border:1px solid #DDD8CB;border-radius:4px;box-sizing:border-box;margin-top:4px;"><button class="btn btn-sm btn-primary" data-act="add-ground-memo" style="margin-top:4px;width:100%;">メモを投稿</button></div>
+    ${groundMapLink}`;
 }
 
 function groundHasCurrentGradeMatches(g){
