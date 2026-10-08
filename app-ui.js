@@ -189,21 +189,41 @@ const SEED_MATCHES = [
   ['豊田AFC', '2026-08-01', 'U-8', '2-7', '敗'],
 ];
 
+/* ---------------- initial marker rendering ---------------- */
+function renderInitialMarkersInBatches(list, batchSize=24){
+  return new Promise(resolve=>{
+    let index=0;
+    const run=()=>{
+      const end=Math.min(index+batchSize,list.length);
+      for(;index<end;index++) renderMarker(list[index]);
+      if(index<list.length){
+        requestAnimationFrame(run);
+      }else{
+        resolve();
+      }
+    };
+    requestAnimationFrame(run);
+  });
+}
+
 /* ---------------- init ---------------- */
 (async function init(){
   // まずチームを即時表示。外部CSV/グラウンド取得でエラーが起きても、
   // 地図本体が「0地点」のまま止まらないようにする。
   try{ await loadPersisted(); }catch(e){ console.error('persist load failed',e); }
 
-  if(points.length===0){
-    try{
-      SEED_DATA.forEach(([name,lat,lng,note,url])=> addPoint(name, lat, lng, {note, url}));
-    }catch(e){
-      console.error('seed team initialization failed',e);
-      toast('チーム初期データの表示に失敗しました');
+  try{
+    if(points.length===0){
+      SEED_DATA.forEach(([name,lat,lng,note,url])=>{
+        const p={id:nextId++,name:name.trim(),lat:Number(lat),lng:Number(lng),note:note||'',matches:[],url:url||''};
+        points.push(p);
+      });
     }
-  }else{
-    try{ points.forEach(renderMarker); }catch(e){ console.error('marker restore failed',e); }
+    // マーカー生成を分割し、ブラウザの描画を途中で止めない。
+    await renderInitialMarkersInBatches(points);
+  }catch(e){
+    console.error('initial marker initialization failed',e);
+    toast('チーム初期データの表示に失敗しました');
   }
 
   try{
