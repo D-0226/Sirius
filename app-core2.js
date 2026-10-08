@@ -98,6 +98,17 @@ document.querySelectorAll('[data-collapse-toggle]').forEach(el=>{
   });
 });
 
+/* ---------------- 会場表示時の自動センタリング ---------------- */
+function centerVisibleGrounds(){
+  if(!groundsVisible) return;
+  const visible=Object.values(grounds).filter(g=>{const m=groundMarkers[g.name];return m&&map.hasLayer(m);}).map(g=>[g.lat,g.lng]);
+  if(!visible.length) return;
+  const isMobile=window.matchMedia('(max-width:600px)').matches;
+  map.invalidateSize({animate:false});
+  map.fitBounds(L.latLngBounds(visible),{paddingTopLeft:[18,isMobile?88:56],paddingBottomRight:[18,isMobile?112:56],maxZoom:isMobile?13:14,animate:true,duration:.35});
+}
+function scheduleGroundCenter(){setTimeout(centerVisibleGrounds,80);setTimeout(centerVisibleGrounds,350);}
+
 document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=>{
   groundsVisible = !groundsVisible;
   const btn=document.getElementById('btnToggleGroundsVisible');
@@ -109,6 +120,7 @@ document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=
     if(teamBtn) teamBtn.classList.remove('active');
     applyGroundGradeFilter();
     scheduleDeclutter();
+    scheduleGroundCenter();
     const visibleCount=Object.values(grounds).filter(g=>groundHasCurrentGradeMatches(g) || (showOtherGrades && groundHasOtherGradeMatches(g))).length;
     toast(`会場表示：${visibleCount}会場。⚽をタップしてください`);
   }else{
