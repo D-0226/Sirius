@@ -242,9 +242,9 @@ const GROUND_COLOR = '#1B4B66'; // 淡色地図の背景でも視認しやすい
 function groundIcon(){
   return L.divIcon({
     className: '',
-    html: `<div style="width:22px;height:22px;border-radius:5px;background:${GROUND_COLOR};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:12px;">⚽</div>`,
-    iconSize: [22,22],
-    iconAnchor: [11,11],
+    html: `<div style="width:28px;height:28px;border-radius:7px;background:${GROUND_COLOR};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:14px;">⚽</div>`,
+    iconSize: [28,28],
+    iconAnchor: [14,14],
   });
 }
 
@@ -381,9 +381,9 @@ function applyGroundGradeFilter(){
 }
 
 function renderGroundMarker(g){
-  const marker = L.marker([g.lat, g.lng], { icon: groundIcon() });
+  const marker = L.marker([g.lat, g.lng], { icon: groundIcon(), riseOnHover:true, autoPanOnFocus:true });
   marker.setOpacity(groundMarkerOpacity(g));
-  marker.bindPopup(groundPopupHtml(g), { maxWidth: 300 });
+  marker.bindPopup(groundPopupHtml(g), { maxWidth: 340, minWidth: 250, className:'ground-popup', autoPan:true, autoPanPaddingTopLeft:[12,72], autoPanPaddingBottomRight:[12,24] });
   const acc=(g.accuracy||'').trim().toUpperCase();
   marker.bindTooltip(`${g.name}${acc ? ' ['+acc+']' : ''}`, { permanent:true, direction:'top', offset:[0,-12], className:'name-label ground-label' });
   marker.on('popupopen', (e)=>{
