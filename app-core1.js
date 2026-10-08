@@ -340,11 +340,13 @@ function groundPopupHtml(g){
   const infoRows=[['駐車場',g.parking],['トイレ',g.toilet],['アクセス',g.access],['施設',g.facilities],['観戦',g.spectator],['注意',g.caution]].filter(x=>x[1]).map(x=>`<div class="ground-info-row"><span class="ground-info-label">${x[0]}</span><span>${escapeHtml(x[1])}</span></div>`).join('');
   const verifiedCount=[g.address,g.parking,g.toilet,g.access,g.facilities,g.spectator,g.caution].filter(Boolean).length;
   const summary=matches.length?`<div class="match-summary"><div class="match-stat"><b>${wins}</b><span>勝</span></div><div class="match-stat"><b>${draws}</b><span>分</span></div><div class="match-stat"><b>${loses}</b><span>敗</span></div><div class="match-stat"><b>${matches.length}</b><span>試合</span></div></div>`:'';
-  const hint=matches.length?'<div style="font-size:10.5px;color:#64748B;margin:4px 0 6px;">対戦相手をタップすると、相手チームの位置・情報を表示します。</div>':'';
+  const quick=`<div class="ground-quick">${g.parking?`<span class="ground-chip">🚗 <b>${escapeHtml(g.parking)}</b></span>`:''}${g.toilet?`<span class="ground-chip">🚻 <b>${escapeHtml(g.toilet)}</b></span>`:''}${g.access?`<span class="ground-chip">🚉 <b>${escapeHtml(g.access)}</b></span>`:''}</div>`;
+  const hint=matches.length?'<div style="font-size:10.5px;color:#64748B;margin:4px 0 6px;">対戦相手・会場名をタップすると相互に移動できます。</div>':'';
   return `<b>⚽ ${escapeHtml(g.name)}</b>
     <div class="ground-info">
       <div class="ground-info-row"><span class="ground-info-label">位置精度</span><span>${groundAccuracyBadge(accuracy)}<span class="accuracy-desc">${escapeHtml(groundAccuracyLabel(accuracy))}</span></span></div>
       <div class="ground-info-row"><span class="ground-info-label">住所</span><span>${address}</span></div>
+      ${quick}
       ${infoRows}
       <div class="ground-info-row"><span class="ground-info-label">情報充実度</span><span>${verifiedCount}/7項目</span></div>
       ${g.updatedAt?`<div class="ground-info-row"><span class="ground-info-label">最終確認</span><span>${escapeHtml(g.updatedAt)}</span></div>`:''}
