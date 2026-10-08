@@ -220,8 +220,8 @@ const SEED_MATCHES = [
   }
 
   try{
-    const groundsOk = await loadGroundsFromSheet();
-    const [liveOk] = await Promise.all([
+    const [groundsOk, liveOk] = await Promise.all([
+      loadGroundsFromSheet(),
       loadMatchesFromSheet({silent:true}),
       loadGroundMemosFromSheet(),
     ]);
