@@ -627,6 +627,14 @@
   }
   body.ground-mode .ground-mode-hint{display:flex;}
   body.ground-mode .team-label{display:none;}
+  body.ground-focus .ground-label{display:none;}
+  body.ground-focus .ground-label.ground-label-selected{display:block!important;}
+  .ground-mode-hint{cursor:pointer;pointer-events:auto;}
+  .ground-label.ground-label-selected{
+    background:rgba(255,255,255,.97)!important;border:1px solid var(--ink)!important;
+    border-radius:6px!important;padding:2px 5px!important;font-weight:700!important;
+    box-shadow:0 2px 6px rgba(0,0,0,.18);
+  }
   .leaflet-popup.ground-popup .leaflet-popup-content-wrapper{max-height:min(68vh,520px);overflow:hidden;}
   .leaflet-popup.ground-popup .leaflet-popup-content{max-height:min(64vh,480px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
   @media(max-width:600px){
@@ -744,7 +752,7 @@
       <button class="map-ctrl-btn" id="btnToggleGroundLabels" title="グラウンド名の表示/非表示"><span class="ico">🚩</span><span class="lbl">会場名</span></button>
       <button class="map-ctrl-btn" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody" title="凡例・絞り込みの表示/非表示"><span class="ico">☰</span><span class="lbl">凡例</span></button>
     </div>
-    <div class="ground-mode-hint" id="groundModeHint">⚽ 会場をタップすると観戦情報を表示</div>
+    <button class="ground-mode-hint" id="groundModeHint" type="button">⚽ 会場をタップすると観戦情報を表示</button>
     <button class="mobile-search-btn" id="mobileSearchBtn" type="button">🔍 検索</button>
     <div class="mobile-search-panel" id="mobileSearchPanel">
       <button class="mobile-search-close" id="mobileSearchClose" type="button" aria-label="検索を閉じる">×</button>
