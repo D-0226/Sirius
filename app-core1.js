@@ -380,12 +380,32 @@ function applyGroundGradeFilter(){
   });
 }
 
+function clearGroundFocus(){
+  Object.values(groundMarkers).forEach(m=>{
+    const tt=m.getTooltip && m.getTooltip();
+    const el=tt && tt.getElement && tt.getElement();
+    if(el) el.classList.remove('ground-label-selected');
+  });
+  document.body.classList.remove('ground-focus');
+}
+function focusGroundLabel(name){
+  clearGroundFocus();
+  const marker=groundMarkers[name];
+  if(!marker) return;
+  const tt=marker.getTooltip && marker.getTooltip();
+  const el=tt && tt.getElement && tt.getElement();
+  if(el){
+    document.body.classList.add('ground-focus');
+    el.classList.add('ground-label-selected');
+  }
+}
 function renderGroundMarker(g){
   const marker = L.marker([g.lat, g.lng], { icon: groundIcon(), riseOnHover:true, autoPanOnFocus:true });
   marker.setOpacity(groundMarkerOpacity(g));
   marker.bindPopup(groundPopupHtml(g), { maxWidth: 340, minWidth: 250, className:'ground-popup', autoPan:true, autoPanPaddingTopLeft:[12,72], autoPanPaddingBottomRight:[12,24] });
   const acc=(g.accuracy||'').trim().toUpperCase();
   marker.bindTooltip(`${g.name}${acc ? ' ['+acc+']' : ''}`, { permanent:true, direction:'top', offset:[0,-12], className:'name-label ground-label' });
+  marker.on('click', ()=>{ focusGroundLabel(g.name); });
   marker.on('popupopen', (e)=>{
     const container = e.popup.getElement();
     const btn = container.querySelector('[data-act="add-ground-memo"]');container.querySelectorAll('[data-team-link]').forEach(el=>el.onclick=ev=>{ev.preventDefault();openTeamByName(el.dataset.teamLink)});
@@ -409,4 +429,12 @@ function refreshGroundMarkers(){
   groundMarkers = {};
   Object.values(grounds).forEach(g=> renderGroundMarker(g));
 }
+const groundModeHint=document.getElementById('groundModeHint');
+if(groundModeHint) groundModeHint.addEventListener('click',()=>{
+  const focused=document.body.classList.toggle('ground-focus');
+  if(!focused){ clearGroundFocus(); return; }
+  const first=Object.values(grounds).find(g=>map.hasLayer(groundMarkers[g.name]));
+  if(first) focusGroundLabel(first.name);
+});
+
 
