@@ -141,18 +141,37 @@
   .match-summary{display:flex;gap:5px;margin:6px 0 2px;}
   .match-stat{flex:1;text-align:center;border:1px solid var(--line);border-radius:6px;padding:5px 2px;background:#fff;}
   .match-stat b{display:block;font-size:13px}.match-stat span{font-size:9px;color:var(--ink-soft);}
+  .mobile-search-btn,.mobile-search-panel{display:none;}
+  .ground-quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0 2px;}
+  .ground-chip{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 7px;font-size:10px;color:var(--ink-soft);}
+  .ground-chip b{color:var(--ink);}
   @media(max-width:600px){
-    /* スマホでは地図を優先し、対戦チームと今季戦績を1段に圧縮 */
+    /* スマホでは検索欄を地図上のボタンへ移し、地図高さを最大化 */
     .guide-strip{grid-template-columns:1fr 1fr;padding:5px 8px;gap:5px;}
     .guide-card:first-child{grid-column:auto;}
     .guide-card{padding:5px 7px;border-radius:7px;}
     .guide-card .gc-label{font-size:9px;margin-bottom:1px;}
     .guide-card .gc-main{font-size:12px;line-height:1.25;}
     .guide-card .gc-sub{font-size:9px;margin-top:1px;}
-    .guide-section{padding:6px 8px;}
-    .guide-search{padding:5px 8px;}
-    .guide-search #mapSearchInput{padding:7px 9px;font-size:12px;}
+    .guide-section{padding:5px 8px;}
+    .guide-search{display:none;}
     .map-quick-help{bottom:8px;left:8px;font-size:9px;}
+    .mobile-search-btn{
+      display:flex;position:absolute;left:8px;top:8px;z-index:1000;
+      align-items:center;justify-content:center;gap:4px;
+      border:1px solid var(--line);background:rgba(255,255,255,.96);
+      border-radius:8px;padding:7px 10px;font-size:11px;font-weight:600;
+      color:var(--ink);box-shadow:0 2px 5px rgba(0,0,0,.16);
+    }
+    .mobile-search-panel{
+      position:absolute;left:8px;right:8px;top:48px;z-index:1200;
+      background:rgba(255,255,255,.98);border:1px solid var(--line);border-radius:9px;
+      padding:7px;box-shadow:0 4px 14px rgba(0,0,0,.2);
+    }
+    .mobile-search-panel.open{display:block;}
+    .mobile-search-panel #mapSearchInputMobile{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
+    .mobile-search-panel .search-results{position:static;width:100%;max-height:48vh;margin-top:5px;}
+    .mobile-search-close{position:absolute;right:12px;top:12px;border:0;background:transparent;font-size:16px;color:var(--ink-soft);}
   }
 
   .legend-search{
@@ -706,6 +725,12 @@
       <button class="map-ctrl-btn active" id="btnToggleGroundsVisible" title="グラウンドの表示/非表示"><span class="ico">⚽</span><span class="lbl">グラウンド</span></button>
       <button class="map-ctrl-btn" id="btnToggleGroundLabels" title="グラウンド名の表示/非表示"><span class="ico">🚩</span><span class="lbl">会場名</span></button>
       <button class="map-ctrl-btn" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody" title="凡例・検索の表示/非表示"><span class="ico">🔍</span><span class="lbl">凡例/検索</span></button>
+    </div>
+    <button class="mobile-search-btn" id="mobileSearchBtn" type="button">🔍 検索</button>
+    <div class="mobile-search-panel" id="mobileSearchPanel">
+      <button class="mobile-search-close" id="mobileSearchClose" type="button" aria-label="検索を閉じる">×</button>
+      <input type="text" id="mapSearchInputMobile" placeholder="チーム名・会場・住所" autocomplete="off">
+      <div id="mapSearchResultsMobile" class="search-results"></div>
     </div>
     <div id="map"></div>
     <div class="map-quick-help">🟢勝率高　🟠要注意　🔴勝率低　⚽会場</div>
