@@ -152,89 +152,101 @@ document.querySelector('.legend-bar').addEventListener('click', (e)=>{
 /* ---------------- name / address search ---------------- */
 const mapSearchInput = document.getElementById('mapSearchInput');
 const mapSearchResults = document.getElementById('mapSearchResults');
+const mapSearchInputMobile = document.getElementById('mapSearchInputMobile');
+const mapSearchResultsMobile = document.getElementById('mapSearchResultsMobile');
 
 function normalizeSearchText(s){
   return (s||'').toString().toLowerCase().replace(/\s+/g,'');
 }
-
 function positionSearchResults(){
-  const rect = mapSearchInput.getBoundingClientRect();
-  const viewportH = window.innerHeight;
-  const margin = 8;
-  const top = rect.bottom + 4;
-  const available = Math.max(80, viewportH - top - margin); // 常に画面内に収まる高さ
-  mapSearchResults.style.left = rect.left + 'px';
-  mapSearchResults.style.width = rect.width + 'px';
-  mapSearchResults.style.top = top + 'px';
-  mapSearchResults.style.maxHeight = available + 'px';
+  const input = window.matchMedia('(max-width:600px)').matches ? mapSearchInputMobile : mapSearchInput;
+  const box = window.matchMedia('(max-width:600px)').matches ? mapSearchResultsMobile : mapSearchResults;
+  if(!input || !box) return;
+  const rect=input.getBoundingClientRect();
+  const viewportH=window.innerHeight;
+  box.style.maxHeight=Math.max(80,viewportH-rect.bottom-12)+'px';
+  if(box===mapSearchResults){
+    box.style.left=rect.left+'px'; box.style.width=rect.width+'px'; box.style.top=(rect.bottom+4)+'px';
+  }
 }
-window.addEventListener('resize', ()=>{
-  if(mapSearchResults.classList.contains('show')) positionSearchResults();
-});
-
-function runMapSearch(rawQuery){
-  const q = normalizeSearchText(rawQuery);
-  mapSearchResults.innerHTML = '';
-  if(!q){ mapSearchResults.classList.remove('show'); return; }
-
-  const results = [];
+function runMapSearch(rawQuery, targetResults=mapSearchResults){
+  const q=normalizeSearchText(rawQuery);
+  targetResults.innerHTML='';
+  if(!q){targetResults.classList.remove('show');return;}
+  const results=[];
   points.forEach(p=>{
-    const hay = normalizeSearchText(p.name + ' ' + (p.note||''));
-    if(hay.includes(q)) {
-      const sm = recordSummary(p.matches);
-      results.push({ type:'team', name:p.name, sub:`${p.note||'対戦チーム'}${sm.total ? ` ｜ ${sm.win}勝${sm.draw}分${sm.lose}敗` : ''}`, ref:p, score: hay.indexOf(q) });
+    const hay=normalizeSearchText(p.name+' '+(p.note||''));
+    if(hay.includes(q)){
+      const sm=recordSummary(p.matches);
+      results.push({type:'team',name:p.name,sub:`${p.note||'対戦チーム'}${sm.total?` ｜ ${sm.win}勝${sm.draw}分${sm.lose}敗`:''}`,ref:p,score:hay.indexOf(q)});
     }
   });
   Object.values(grounds).forEach(g=>{
-    const memo = getGroundMemo(g.name);
-    const hayRaw = [g.name, g.address, g.accuracy, g.updatedAt, g.parking, g.toilet, g.access, g.facilities, g.spectator, g.caution, memo].filter(Boolean).join(' ');
-    const hay = normalizeSearchText(hayRaw);
-    if(hay.includes(q)) {
+    const posts=getGroundMemoPosts(g.name);
+    const memo=posts.length?posts[0].memo:'';
+    const hayRaw=[g.name,g.address,g.accuracy,g.updatedAt,g.parking,g.toilet,g.access,g.facilities,g.spectator,g.caution,memo].filter(Boolean).join(' ');
+    const hay=normalizeSearchText(hayRaw);
+    if(hay.includes(q)){
       const acc=(g.accuracy||'').trim().toUpperCase();
-      const place=g.address || '住所情報なし';
-      results.push({ type:'ground', name:g.name, sub:`⚽ 会場${acc ? ' ｜ 精度'+acc : ''}${memo ? ' ｜ メモあり' : ''} ｜ ${place}`, ref:g, score: hay.indexOf(q) });
+      results.push({type:'ground',name:g.name,sub:`⚽ 会場${acc?' ｜ 精度'+acc:''}${memo?' ｜ メモあり':''} ｜ ${g.address||'住所情報なし'}`,ref:g,score:hay.indexOf(q)});
     }
   });
   results.sort((a,b)=>(a.score||0)-(b.score||0));
-
-  if(results.length===0){
-    mapSearchResults.innerHTML = '<div class="search-empty">該当する地点が見つかりません</div>';
-    positionSearchResults();
-    mapSearchResults.classList.add('show');
-    return;
+  if(!results.length){
+    targetResults.innerHTML='<div class="search-empty">該当する地点が見つかりません</div>';
+    targetResults.classList.add('show'); positionSearchResults(); return;
   }
-
   results.slice(0,25).forEach(r=>{
-    const item = document.createElement('div');
-    item.className = 'search-result-item';
-    item.innerHTML = `<span class="sr-type">${r.type==='ground' ? '⚽ グラウンド' : 'チーム'}</span><span class="sr-name">${escapeHtml(r.name)}</span><span class="sr-sub">${escapeHtml(r.sub)}</span>`;
-    item.addEventListener('click', ()=>{
-      let marker, lat, lng;
-      if(r.type==='team'){
-        marker = markers[r.ref.id]; lat = r.ref.lat; lng = r.ref.lng;
-        if(marker) selectPoint(r.ref.id);
-      } else {
-        marker = groundMarkers[r.ref.name]; lat = r.ref.lat; lng = r.ref.lng;
-      }
-      if(marker){
-        map.flyTo([lat, lng], Math.max(map.getZoom(), 15));
-        marker.openPopup();
-      }
-      mapSearchResults.classList.remove('show');
-      mapSearchInput.value = '';
-      const legendBody = document.getElementById('legendBody');
-      legendBody.classList.add('collapsed');
-      document.getElementById('btnHeaderToggle').classList.remove('active');
-      fixMapSize();
+    const item=document.createElement('div'); item.className='search-result-item';
+    item.innerHTML=`<span class="sr-type">${r.type==='ground'?'⚽ グラウンド':'チーム'}</span><span class="sr-name">${escapeHtml(r.name)}</span><span class="sr-sub">${escapeHtml(r.sub)}</span>`;
+    item.addEventListener('click',()=>{
+      let marker,lat,lng;
+      if(r.type==='team'){marker=markers[r.ref.id];lat=r.ref.lat;lng=r.ref.lng;if(marker)selectPoint(r.ref.id);}
+      else{marker=groundMarkers[r.ref.name];lat=r.ref.lat;lng=r.ref.lng;}
+      if(marker){map.flyTo([lat,lng],Math.max(map.getZoom(),15));marker.openPopup();}
+      targetResults.classList.remove('show');
+      if(mapSearchInput) mapSearchInput.value='';
+      if(mapSearchInputMobile) mapSearchInputMobile.value='';
+      const panel=document.getElementById('mobileSearchPanel'); if(panel) panel.classList.remove('open');
+      const legendBody=document.getElementById('legendBody');
+      legendBody.classList.add('collapsed'); document.getElementById('btnHeaderToggle').classList.remove('active'); fixMapSize();
     });
-    mapSearchResults.appendChild(item);
+    targetResults.appendChild(item);
   });
-  positionSearchResults();
-  mapSearchResults.classList.add('show');
+  targetResults.classList.add('show'); positionSearchResults();
 }
+if(mapSearchInput) mapSearchInput.addEventListener('input',e=>runMapSearch(e.target.value,mapSearchResults));
+if(mapSearchInput) mapSearchInput.addEventListener('focus',e=>{if(e.target.value)runMapSearch(e.target.value,mapSearchResults)});
+if(mapSearchInputMobile) mapSearchInputMobile.addEventListener('input',e=>runMapSearch(e.target.value,mapSearchResultsMobile));
+if(mapSearchInputMobile) mapSearchInputMobile.addEventListener('focus',e=>{if(e.target.value)runMapSearch(e.target.value,mapSearchResultsMobile)});
+window.addEventListener('resize',()=>{if(mapSearchResults.classList.contains('show')||mapSearchResultsMobile.classList.contains('show'))positionSearchResults();});
 
-mapSearchInput.addEventListener('input', (e)=> runMapSearch(e.target.value));
-mapSearchInput.addEventListener('focus', (e)=>{ if(e.target.value) runMapSearch(e.target.value); });
+const mobileSearchPanel=document.getElementById('mobileSearchPanel');
+const mobileSearchBtn=document.getElementById('mobileSearchBtn');
+const mobileSearchClose=document.getElementById('mobileSearchClose');
+if(mobileSearchBtn) mobileSearchBtn.addEventListener('click',()=>{
+  mobileSearchPanel.classList.add('open');
+  mapSearchInputMobile.focus();
+});
+if(mobileSearchClose) mobileSearchClose.addEventListener('click',()=>{
+  mobileSearchPanel.classList.remove('open');
+  mapSearchResultsMobile.classList.remove('show');
+});
+/* ---------------- team <-> ground navigation ---------------- */
+function openGroundByName(name){
+  const g=grounds[name];
+  const marker=g && groundMarkers[name];
+  if(!g || !marker){toast('会場情報が見つかりません');return;}
+  map.flyTo([g.lat,g.lng],Math.max(map.getZoom(),15));
+  marker.openPopup();
+}
+function openTeamByName(name){
+  const p=findTeamPoint(name);
+  const marker=p && markers[p.id];
+  if(!p || !marker){toast('チーム位置が見つかりません');return;}
+  map.flyTo([p.lat,p.lng],Math.max(map.getZoom(),13));
+  marker.openPopup();
+}
 
 /* ---------------- 観戦ガイドサマリー ---------------- */
 function allGradeMatchesForCurrent(){
@@ -262,8 +274,9 @@ function updateGuide(){
   const rs=document.getElementById('overallRecordSub');
   if(tc) tc.textContent=`${opponents.size}チーム`;
   if(ts) ts.textContent=`${GRADE_LABELS[currentGrade]||currentGrade}・対戦実績`;
-  if(rm) rm.textContent=`${wins}勝 ${draws}分 ${loses}敗`;
-  if(rs) rs.textContent=matches.length ? `全${matches.length}試合` : '試合データなし';
+  if(rm) rm.textContent=matches.length ? `${matches.length}試合 ${wins}勝${draws}分${loses}敗` : '試合データなし';
+  const winRate=matches.length ? Math.round((wins/matches.length)*100) : 0;
+  if(rs) rs.textContent=matches.length ? `勝率 ${winRate}%・${GRADE_LABELS[currentGrade]||currentGrade}` : '表示学年の全対戦';
 
 
   const recent=matches.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,6);
