@@ -34,6 +34,7 @@ setTimeout(fixMapSize, 1500);
 
 /* ---------------- avoid overlapping name labels ---------------- */
 let declutterTimer = null;
+let declutterRunId = 0;
 function declutterLabels(){
   const showTeam = document.body.classList.contains('team-labels-visible');
   const showGround = document.body.classList.contains('ground-labels-visible');
@@ -54,27 +55,39 @@ function declutterLabels(){
   }
   if(entries.length===0) return;
 
+  // 座標計算と並べ替えは先に行い、Tooltipの更新だけを分割して実行する。
   entries.forEach(e=>{
     const pt = map.latLngToContainerPoint([e.lat, e.lng]);
     e.x = pt.x; e.y = pt.y;
   });
-  // stable placement order: top-to-bottom, then left-to-right
   entries.sort((a,b)=> (a.y - b.y) || (a.x - b.x));
 
+  const runId = ++declutterRunId;
   const CELL_W = 60, CELL_H = 16;
   const cellCounts = {};
-  entries.forEach(e=>{
-    const key = Math.round(e.x / CELL_W) + '_' + Math.round(e.y / CELL_H);
-    const n = cellCounts[key] || 0;
-    cellCounts[key] = n + 1;
-    const offsetY = -10 - (14 * n); // stack further labels progressively higher
-    const tt = e.marker.getTooltip && e.marker.getTooltip();
-    const currentOffsetY = (tt && tt.options && tt.options.offset) ? tt.options.offset[1] : null;
-    if(currentOffsetY !== offsetY){
-      e.marker.unbindTooltip();
-      e.marker.bindTooltip(e.name, { permanent:true, direction:'top', offset:[0, offsetY], className: e.cls });
+  let index = 0;
+  const batchSize = 24;
+
+  function applyBatch(){
+    // 地図移動やズーム後に古い処理が残っていたら中断する。
+    if(runId !== declutterRunId) return;
+    const end = Math.min(index + batchSize, entries.length);
+    for(; index < end; index++){
+      const e = entries[index];
+      const key = Math.round(e.x / CELL_W) + '_' + Math.round(e.y / CELL_H);
+      const n = cellCounts[key] || 0;
+      cellCounts[key] = n + 1;
+      const offsetY = -10 - (14 * n);
+      const tt = e.marker.getTooltip && e.marker.getTooltip();
+      const currentOffsetY = (tt && tt.options && tt.options.offset) ? tt.options.offset[1] : null;
+      if(currentOffsetY !== offsetY){
+        e.marker.unbindTooltip();
+        e.marker.bindTooltip(e.name, { permanent:true, direction:'top', offset:[0, offsetY], className:e.cls });
+      }
     }
-  });
+    if(index < entries.length) requestAnimationFrame(applyBatch);
+  }
+  requestAnimationFrame(applyBatch);
 }
 function scheduleDeclutter(){
   clearTimeout(declutterTimer);
