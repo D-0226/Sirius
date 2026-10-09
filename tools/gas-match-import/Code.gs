@@ -49,7 +49,7 @@ function previewCsvJune2026() {
   console.log('CSV parse success: ' + parsedCount);
   console.log('CSV parse needs review: ' + parseFailureCount);
   console.log('CSV columns: ' + header.join(','));
-  console.log('CSV output (read-only preview):\\n' + csvLines.join('\\n'));
+  console.log('CSV output (read-only preview):\n' + csvLines.join('\n'));
 }
 
 /** CSVセルをエスケープする。 */
