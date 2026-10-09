@@ -37,6 +37,36 @@ function previewJune2026() {
 }
 
 /**
+ * 取得したHTMLの構造を調査する診断関数。
+ * 抽出候補が不自然な場合に実行ログから元HTMLの構造を確認する。
+ * 先頭の一部と、スコアを含むHTML断片のみ出力する。
+ */
+function diagnoseJune2026Page() {
+  const response = UrlFetchApp.fetch(SIRIUS_IMPORT_CONFIG.previewPageUrl, {
+    muteHttpExceptions: true,
+    followRedirects: true
+  });
+  const html = response.getContentText('UTF-8');
+  console.log('HTTP status: ' + response.getResponseCode());
+  console.log('Content-Type: ' + (response.getHeaders()['Content-Type'] || '(unknown)'));
+  const title = html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+  console.log('HTML title: ' + (title ? title[1].replace(/<[^>]+>/g, '').trim() : '(not found)'));
+  console.log('HTML length: ' + html.length);
+  console.log('HTML preview (first 6000 chars):\\n' + html.slice(0, 6000));
+
+  const scorePattern = /[0-9]{1,2}\\s*[-－―−:：]\\s*[0-9]{1,2}/;
+  const fragments = html.match(/<(?:tr|li|p|div|td|dd|dt|article)\\b[^>]*>[\\s\\S]{0,1200}?<\\/(?:tr|li|p|div|td|dd|dt|article)>/gi) || [];
+  let printed = 0;
+  fragments.forEach(function(fragment) {
+    if (printed >= 40 || !scorePattern.test(fragment)) return;
+    console.log('SCORE HTML FRAGMENT ' + (printed + 1) + ': ' +
+      fragment.replace(/\\s+/g, ' ').slice(0, 1000));
+    printed++;
+  });
+  console.log('Score-containing HTML fragments: ' + printed);
+}
+
+/**
  * 月別ページを取得し、スコア表記を含む周辺テキストを候補化する。
  * 日付・カテゴリは周辺テキストからの仮抽出であり、未確定値を推測で補完しない。
  */
