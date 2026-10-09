@@ -11,7 +11,9 @@ const SIRIUS_IMPORT_CONFIG = {
   sourceLabel: 'FC SIRIUS公式サイト 2026年6月',
   sourceYear: 2026,
   sourceMonth: 6,
-  maxCandidates: 150
+  maxCandidates: 150,
+  batchStartIndex: 1,
+  batchSize: 10
 };
 
 /**
@@ -53,6 +55,116 @@ function previewCsvJune2026() {
   console.log('CSV output (read-only preview):\n' + csvLines.join('\n'));
 }
 
+
+
+/**
+ * 月別ページを10件ずつ取得して、全期間データの解析状況を確認する（読み取り専用）。
+ * 次のバッチへ進むときは SIRIUS_IMPORT_CONFIG.batchStartIndex を 1, 11, 21... と変更する。
+ * 本番シートへの書き込み・既存データの削除は行わない。
+ */
+function previewMonthlyPageBatch() {
+  const inventory = fetchMonthlyPageInventory_();
+  const startIndex = Math.max(1, Number(SIRIUS_IMPORT_CONFIG.batchStartIndex) || 1);
+  const batchSize = Math.max(1, Number(SIRIUS_IMPORT_CONFIG.batchSize) || 10);
+  const batch = inventory.slice(startIndex - 1, startIndex - 1 + batchSize);
+
+  console.log('Monthly pages total: ' + inventory.length);
+  console.log('Batch range: ' + startIndex + '-' + (startIndex + batch.length - 1));
+  console.log('Batch page count: ' + batch.length);
+  if (batch.length === 0) {
+    console.log('対象ページなし。batchStartIndex が総ページ数を超えていないか確認してください。');
+    return;
+  }
+
+  const totals = {
+    pagesOk: 0,
+    pagesFailed: 0,
+    candidates: 0,
+    parsed: 0,
+    parseFailures: 0,
+    internal: 0
+  };
+
+  batch.forEach(function(page, offset) {
+    const result = fetchMatchCandidates_(page.url, page.year, page.month);
+    const pageNo = startIndex + offset;
+    let parsed = 0;
+    let failed = 0;
+    let internal = 0;
+    if (result.status >= 200 && result.status < 300) {
+      totals.pagesOk++;
+    } else {
+      totals.pagesFailed++;
+    }
+    result.candidates.forEach(function(candidate) {
+      const row = parseCandidateToCsvRow_(candidate);
+      if (!row) {
+        failed++;
+        return;
+      }
+      parsed++;
+      if (isInternalSiriusMatch_(row.team)) internal++;
+    });
+    totals.candidates += result.candidates.length;
+    totals.parsed += parsed;
+    totals.parseFailures += failed;
+    totals.internal += internal;
+    console.log(
+      pageNo + '\\t' + page.year + '-' + ('0' + page.month).slice(-2) +
+      '\\tHTTP=' + result.status +
+      '\\tcandidates=' + result.candidates.length +
+      '\\tparsed=' + parsed +
+      '\\tparseFailures=' + failed +
+      '\\tinternal=' + internal +
+      '\\t' + page.url
+    );
+  });
+
+  console.log('BATCH SUMMARY');
+  console.log('pagesOK=' + totals.pagesOk);
+  console.log('pagesFailed=' + totals.pagesFailed);
+  console.log('candidates=' + totals.candidates);
+  console.log('parsed=' + totals.parsed);
+  console.log('parseFailures=' + totals.parseFailures);
+  console.log('internalSirius=' + totals.internal);
+  console.log('プレビューのみ。シートへの書き込み・既存データの削除は行っていません。');
+}
+
+/** 公式サイトの月別ページ一覧を取得して年月・URL配列を返す。 */
+function fetchMonthlyPageInventory_() {
+  const response = UrlFetchApp.fetch(SIRIUS_IMPORT_CONFIG.indexPageUrl, {
+    muteHttpExceptions: true,
+    followRedirects: true,
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SiriusMatchPreview/1.0)' }
+  });
+  const status = response.getResponseCode();
+  const html = response.getContentText('Shift_JIS');
+  if (status < 200 || status >= 300) {
+    throw new Error('月別ページ一覧の取得に失敗しました。HTTP status=' + status + '。データは変更していません。');
+  }
+
+  const anchorPattern = /<a\\b[^>]*href\\s*=\\s*["']([^"']*page\\.php\\?pno=\\d+[^"']*)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
+  const pages = [];
+  let match;
+  while ((match = anchorPattern.exec(html)) !== null) {
+    const label = htmlToPlainText_(match[2]).replace(/[\\t\\r\\n ]+/g, '').trim();
+    const monthMatch = label.match(/^(\\d{1,2})月$/);
+    if (!monthMatch) continue;
+    const prefixText = htmlToPlainText_(html.slice(0, match.index)).replace(/[\\t\\r\\n ]+/g, ' ');
+    const yearMatches = prefixText.match(/20\\d{2}年/g);
+    if (!yearMatches || yearMatches.length === 0) continue;
+    const year = Number(yearMatches[yearMatches.length - 1].replace('年', ''));
+    const month = Number(monthMatch[1]);
+    const href = match[1].replace(/&amp;/gi, '&');
+    const url = /^https?:\\/\\//i.test(href)
+      ? href
+      : 'https://sc.footballnavi.jp/fcsirius/' + href.replace(/^\\.\\//, '').replace(/^\\//, '');
+    pages.push({ year: year, month: month, url: url });
+  }
+  pages.sort(function(a, b) { return a.year - b.year || a.month - b.month; });
+  if (pages.length === 0) throw new Error('月別ページのリンクを抽出できませんでした。HTML構造を確認してください。');
+  return pages;
+}
 
 /**
  * 公式サイトの試合日程・結果一覧から、月別ページのURL台帳を作る（読み取り専用）。
@@ -442,7 +554,9 @@ function diagnoseJune2026Page() {
  * スコアを含む行を候補化する。
  * ページにある全角数字を半角に正規化して判定し、日付・カテゴリは直近の見出しを引き継ぐ。
  */
-function fetchMatchCandidates_(url) {
+function fetchMatchCandidates_(url, sourceYear, sourceMonth) {
+  const effectiveYear = sourceYear || SIRIUS_IMPORT_CONFIG.sourceYear;
+  const effectiveMonth = sourceMonth || SIRIUS_IMPORT_CONFIG.sourceMonth;
   const response = UrlFetchApp.fetch(url, {
     muteHttpExceptions: true,
     followRedirects: true,
@@ -470,8 +584,8 @@ function fetchMatchCandidates_(url) {
     const line = lines[i];
     const dateMatch = line.match(dateHeaderPattern);
     if (dateMatch) {
-      currentDate = SIRIUS_IMPORT_CONFIG.sourceYear + '-' +
-        ('0' + SIRIUS_IMPORT_CONFIG.sourceMonth).slice(-2) + '-' +
+      currentDate = effectiveYear + '-' +
+        ('0' + effectiveMonth).slice(-2) + '-' +
         ('0' + dateMatch[2]).slice(-2);
     }
 
