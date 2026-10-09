@@ -96,10 +96,15 @@ function previewMonthlyPageBatch() {
     } else {
       totals.pagesFailed++;
     }
+    let failureSamples = 0;
     result.candidates.forEach(function(candidate) {
       const row = parseCandidateToCsvRow_(candidate);
       if (!row) {
         failed++;
+        if (failureSamples < 5) {
+          console.log('PARSE FAILURE SAMPLE page=' + pageNo + ' raw=' + candidate.text);
+          failureSamples++;
+        }
         return;
       }
       parsed++;
