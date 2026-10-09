@@ -19,14 +19,51 @@ function previewJune2026() {
   console.log('URL: ' + SIRIUS_IMPORT_CONFIG.previewPageUrl);
   console.log('HTTP status: ' + result.status);
   console.log('Candidate count: ' + result.candidates.length);
+  let parsedCount = 0;
+  const previewLimit = 15;
   result.candidates.forEach(function(candidate, index) {
+    const row = parseCandidateToCsvRow_(candidate);
+    if (row) parsedCount++;
+    if (index >= previewLimit) return;
     console.log(
       (index + 1) + '\t' +
-      'date=' + (candidate.date || '(未確定)') + '\t' +
-      'category=' + (candidate.category || '(未確定)') + '\t' +
-      'text=' + candidate.text
+      'team=' + (row ? row.team : '(要確認)') + '\t' +
+      'date=' + candidate.date + '\t' +
+      'category=' + candidate.category + '\t' +
+      'score=' + (row ? row.score : '(要確認)') + '\t' +
+      'result=' + (row ? row.result : '(要確認)') + '\t' +
+      'raw=' + candidate.text
     );
   });
+  console.log('CSV parse success: ' + parsedCount);
+  console.log('CSV parse needs review: ' + (result.candidates.length - parsedCount));
+  console.log('Preview rows shown: ' + Math.min(previewLimit, result.candidates.length));
+}
+
+/**
+ * 既存CSV形式（team,date,category,score,result）に変換する。
+ * teamは対戦相手、scoreはFC SIRIUS側から見たスコア、resultは公式表示記号を使う。
+ * PKスコア等の補足はrawに残るため、この段階ではCSV列には含めない。
+ */
+function parseCandidateToCsvRow_(candidate) {
+  const line = candidate.text;
+  const match = line.match(/^[〇×△]\s*(.*?)\s+(\d{1,2})\s*[-－―−:：]\s*(\d{1,2})(?:\s*\(PK[^)]*\))?\s*(.*)$/i);
+  if (!match) return null;
+
+  let opponent = (match[4] || '').trim();
+  opponent = opponent.replace(/\s*（FM）\s*$/i, '').replace(/\s*\(FM\)\s*$/i, '');
+  opponent = opponent.replace(/\s+(?:予選リーグ.*|決勝戦|準決勝|準々決勝|\d+位通過|\d+位決定戦|\d+位決定リーグ).*$/, '').trim();
+  if (!opponent) return null;
+
+  const resultMark = line.charAt(0);
+  const resultLabel = resultMark === '〇' ? '勝' : resultMark === '×' ? '敗' : '分';
+  return {
+    team: opponent,
+    date: candidate.date,
+    category: candidate.category,
+    score: match[2] + '-' + match[3],
+    result: resultLabel
+  };
 }
 
 /** 公式ページの文字コード・タイトル・スコア行を診断する。 */
