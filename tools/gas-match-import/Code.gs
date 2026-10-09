@@ -54,16 +54,19 @@ function diagnoseJune2026Page() {
   console.log('HTML length: ' + html.length);
   console.log('HTML preview (first 6000 chars):\n' + html.slice(0, 6000));
 
+  const readableText = htmlToPlainText_(html);
+  const lines = readableText.split('\n')
+    .map(function(line) { return line.replace(/[\t\u00a0 ]+/g, ' ').trim(); })
+    .filter(function(line) { return line.length > 0; });
   const scorePattern = /[0-9]{1,2}\s*[-－―−:：]\s*[0-9]{1,2}/;
-  const fragments = html.match(/<(?:tr|li|p|div|td|dd|dt|article)\b[^>]*>[\s\S]{0,1200}?<\/(?:tr|li|p|div|td|dd|dt|article)>/gi) || [];
   let printed = 0;
-  fragments.forEach(function(fragment) {
-    if (printed >= 40 || !scorePattern.test(fragment)) return;
-    console.log('SCORE HTML FRAGMENT ' + (printed + 1) + ': ' +
-      fragment.replace(/\s+/g, ' ').slice(0, 1000));
+  for (let i = 0; i < lines.length && printed < 40; i++) {
+    if (!scorePattern.test(lines[i])) continue;
+    console.log('SCORE TEXT LINE ' + (printed + 1) + ': ' +
+      lines.slice(Math.max(0, i - 3), Math.min(lines.length, i + 2)).join(' | '));
     printed++;
-  });
-  console.log('Score-containing HTML fragments: ' + printed);
+  }
+  console.log('Score-containing text lines: ' + printed);
 }
 
 /**
