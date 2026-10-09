@@ -142,30 +142,29 @@ function fetchMonthlyPageInventory_() {
   if (status < 200 || status >= 300) {
     throw new Error('月別ページ一覧の取得に失敗しました。HTTP status=' + status + '。データは変更していません。');
   }
-
-  const anchorPattern = /<a\\b[^>]*href\\s*=\\s*["']([^"']*page\\.php\\?pno=\\d+[^"']*)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
   const pages = [];
-  let match;
-  while ((match = anchorPattern.exec(html)) !== null) {
-    const label = htmlToPlainText_(match[2]).replace(/[\\t\\r\\n ]+/g, '').trim();
-    const monthMatch = label.match(/^(\\d{1,2})月$/);
-    if (!monthMatch) continue;
-    const prefixText = htmlToPlainText_(html.slice(0, match.index)).replace(/[\\t\\r\\n ]+/g, ' ');
-    const yearMatches = prefixText.match(/20\\d{2}年/g);
-    if (!yearMatches || yearMatches.length === 0) continue;
+  const anchors = html.split('<a');
+  anchors.forEach(function(fragment) {
+    const hrefMatch = fragment.match(/href\s*=\s*["']([^"']*page\.php\?pno=\d+[^"']*)["']/i);
+    if (!hrefMatch) return;
+    const closeIndex = fragment.indexOf('</a>');
+    if (closeIndex < 0) return;
+    const label = htmlToPlainText_(fragment.slice(0, closeIndex)).replace(/[\t\r\n ]+/g, '').trim();
+    const monthMatch = label.match(/^(\d{1,2})月$/);
+    if (!monthMatch) return;
+    const prefixText = htmlToPlainText_(html.slice(0, html.indexOf('<a' + fragment))).replace(/[\t\r\n ]+/g, ' ');
+    const yearMatches = prefixText.match(/20\d{2}年/g);
+    if (!yearMatches || yearMatches.length === 0) return;
     const year = Number(yearMatches[yearMatches.length - 1].replace('年', ''));
     const month = Number(monthMatch[1]);
-    const href = match[1].replace(/&amp;/gi, '&');
-    const url = /^https?:\\/\\//i.test(href)
-      ? href
-      : 'https://sc.footballnavi.jp/fcsirius/' + href.replace(/^\\.\\//, '').replace(/^\\//, '');
+    const href = hrefMatch[1].replace(/&amp;/gi, '&');
+    const url = /^https?:\/\//i.test(href) ? href : 'https://sc.footballnavi.jp/fcsirius/' + href.replace(/^\.\//, '').replace(/^\//, '');
     pages.push({ year: year, month: month, url: url });
-  }
+  });
   pages.sort(function(a, b) { return a.year - b.year || a.month - b.month; });
   if (pages.length === 0) throw new Error('月別ページのリンクを抽出できませんでした。HTML構造を確認してください。');
   return pages;
 }
-
 /**
  * 公式サイトの試合日程・結果一覧から、月別ページのURL台帳を作る（読み取り専用）。
  * 年度・月・URLをログ出力する。スプレッドシートへの書き込みは行わない。
