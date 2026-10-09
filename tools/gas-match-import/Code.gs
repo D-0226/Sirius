@@ -508,20 +508,22 @@ function previewJune2026() {
  * resultは公式表示記号、siriusTeamはFC SIRIUS側のチーム名。
  */
 function parseCandidateToCsvRow_(candidate) {
-  const line = candidate.text;
-  const match = line.match(/^[〇×△]\s*(.*?)\s+(\d{1,2})\s*[-－―−:：]\s*(\d{1,2})(?:\s*\(PK[^)]*\))?\s*(.*)$/i);
+  const line = normalizeMatchText_(candidate.text);
+  // 公式ページには勝ちマーク「○」「〇」「◯」が混在し、PK表記には全角括弧もある。
+  const match = line.match(/^[〇○◯×△]\s*(.*?)\s+(\d{1,2})\s*[-－―−:：]\s*(\d{1,2})(?:\s*[（(]\s*PK\s*([0-9]{1,2})\s*[-－―−:：]\s*([0-9]{1,2})\s*[）)])?\s*(.*)$/i);
   if (!match) return null;
 
   const siriusTeam = (match[1] || '').replace(/\s+/g, ' ').trim();
-  const pkMatch = line.match(/\(PK\s*([0-9]{1,2})\s*[-－―−:：]\s*([0-9]{1,2})\)/i);
-  const pkScore = pkMatch ? pkMatch[1] + '-' + pkMatch[2] : '';
-  let opponent = (match[4] || '').trim();
-  opponent = opponent.replace(/\s*（FM）\s*$/i, '').replace(/\s*\(FM\)\s*$/i, '');
+  const pkScore = match[4] && match[5] ? match[4] + '-' + match[5] : '';
+  let opponent = (match[6] || '').trim();
+  opponent = opponent.replace(/\s*[（(]FM[）)]\s*$/i, '');
   opponent = opponent.replace(/\s+(?:予選リーグ.*|決勝戦|準決勝|準々決勝|\d+位通過|\d+位決定戦|\d+位決定リーグ).*$/, '').trim();
   if (!opponent) return null;
 
   const resultMark = line.charAt(0);
-  const resultLabel = resultMark === '〇' ? '勝' : resultMark === '×' ? '敗' : '分';
+  const resultLabel = (resultMark === '〇' || resultMark === '○' || resultMark === '◯')
+    ? '勝'
+    : resultMark === '×' ? '敗' : '分';
   return {
     team: opponent,
     siriusTeam: siriusTeam,
