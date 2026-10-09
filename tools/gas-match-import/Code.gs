@@ -6,6 +6,7 @@
  */
 
 const SIRIUS_IMPORT_CONFIG = {
+  indexPageUrl: 'https://sc.footballnavi.jp/fcsirius/page.php?pno=459',
   previewPageUrl: 'https://sc.footballnavi.jp/fcsirius/page.php?pno=2044',
   sourceLabel: 'FC SIRIUS公式サイト 2026年6月',
   sourceYear: 2026,
@@ -52,6 +53,64 @@ function previewCsvJune2026() {
   console.log('CSV output (read-only preview):\n' + csvLines.join('\n'));
 }
 
+
+/**
+ * 公式サイトの試合日程・結果一覧から、月別ページのURL台帳を作る（読み取り専用）。
+ * 年度・月・URLをログ出力する。スプレッドシートへの書き込みは行わない。
+ */
+function previewMonthlyPageInventory() {
+  const response = UrlFetchApp.fetch(SIRIUS_IMPORT_CONFIG.indexPageUrl, {
+    muteHttpExceptions: true,
+    followRedirects: true,
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SiriusMatchPreview/1.0)' }
+  });
+  const status = response.getResponseCode();
+  const html = response.getContentText('Shift_JIS');
+
+  console.log('INDEX URL: ' + SIRIUS_IMPORT_CONFIG.indexPageUrl);
+  console.log('HTTP status: ' + status);
+  if (status < 200 || status >= 300) {
+    throw new Error('月別ページ一覧の取得に失敗しました。HTTP status=' + status + '。データは変更していません。');
+  }
+
+  // 年度の見出しと月リンクをHTML上の順番で読み取る。
+  const anchorPattern = /<a\\b[^>]*href\\s*=\\s*["']([^"']*page\\.php\\?pno=\\d+[^"']*)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
+  const anchors = [];
+  let match;
+  while ((match = anchorPattern.exec(html)) !== null) {
+    const label = htmlToPlainText_(match[2]).replace(/[\\t\\r\\n ]+/g, '').trim();
+    const monthMatch = label.match(/^(\\d{1,2})月$/);
+    if (!monthMatch) continue;
+
+    const prefixText = htmlToPlainText_(html.slice(0, match.index))
+      .replace(/[\\t\\r\\n ]+/g, ' ');
+    const yearMatches = prefixText.match(/20\\d{2}年/g);
+    if (!yearMatches || yearMatches.length === 0) continue;
+    const year = Number(yearMatches[yearMatches.length - 1].replace('年', ''));
+    const month = Number(monthMatch[1]);
+    const href = match[1].replace(/&amp;/gi, '&');
+    const absoluteUrl = /^https?:\\/\\//i.test(href)
+      ? href
+      : 'https://sc.footballnavi.jp/fcsirius/' + href.replace(/^\\.\\//, '').replace(/^\\//, '');
+    anchors.push({ year: year, month: month, url: absoluteUrl });
+  }
+
+  if (anchors.length === 0) {
+    throw new Error('月別ページのリンクを抽出できませんでした。HTML構造を確認してください。');
+  }
+
+  anchors.sort(function(a, b) {
+    return a.year - b.year || a.month - b.month;
+  });
+
+  console.log('Monthly page count: ' + anchors.length);
+  anchors.forEach(function(item, index) {
+    console.log(
+      (index + 1) + '\\t' + item.year + '-' + ('0' + item.month).slice(-2) + '\\t' + item.url
+    );
+  });
+  console.log('URL台帳プレビューのみ。シートへの書き込み・既存データの削除は行っていません。');
+}
 
 /**
  * 再構築用プレビュー（読み取り専用）。
