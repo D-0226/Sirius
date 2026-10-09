@@ -14,6 +14,51 @@ const SIRIUS_IMPORT_CONFIG = {
 };
 
 /**
+ * CSV形式を確認する（読み取り専用。Google Sheetsへの書き込みは行わない）。
+ * 既存5列を維持し、末尾にsiriusTeamとpkScoreを追加する。
+ */
+function previewCsvJune2026() {
+  const result = fetchMatchCandidates_(SIRIUS_IMPORT_CONFIG.previewPageUrl);
+  const header = ['team', 'date', 'category', 'score', 'result', 'siriusTeam', 'pkScore'];
+  const csvLines = [header.map(csvEscape_).join(',')];
+  let parsedCount = 0;
+  let parseFailureCount = 0;
+
+  result.candidates.forEach(function(candidate) {
+    const row = parseCandidateToCsvRow_(candidate);
+    if (!row) {
+      parseFailureCount++;
+      return;
+    }
+    parsedCount++;
+    csvLines.push([
+      row.team,
+      row.date,
+      row.category,
+      row.score,
+      row.result,
+      row.siriusTeam,
+      row.pkScore
+    ].map(csvEscape_).join(','));
+  });
+
+  console.log('SOURCE: ' + SIRIUS_IMPORT_CONFIG.sourceLabel);
+  console.log('CSV preview URL: ' + SIRIUS_IMPORT_CONFIG.previewPageUrl);
+  console.log('HTTP status: ' + result.status);
+  console.log('Candidate count: ' + result.candidates.length);
+  console.log('CSV parse success: ' + parsedCount);
+  console.log('CSV parse needs review: ' + parseFailureCount);
+  console.log('CSV columns: ' + header.join(','));
+  console.log('CSV output (read-only preview):\\n' + csvLines.join('\\n'));
+}
+
+/** CSVセルをエスケープする。 */
+function csvEscape_(value) {
+  const text = value == null ? '' : String(value);
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+/**
  * PK戦スコアがある試合だけを抽出して確認する（読み取り専用）。
  */
 function previewPKRowsJune2026() {
@@ -77,9 +122,9 @@ function previewJune2026() {
 }
 
 /**
- * 既存CSV形式（team,date,category,score,result）に変換する。
- * teamは対戦相手、scoreはFC SIRIUS側から見たスコア、resultは公式表示記号を使う。
- * PKスコア等の補足はrawに残るため、この段階ではCSV列には含めない。
+ * CSV行に変換する。
+ * teamは対戦相手、score/pkScoreはFC SIRIUS側から見たスコア、
+ * resultは公式表示記号、siriusTeamはFC SIRIUS側のチーム名。
  */
 function parseCandidateToCsvRow_(candidate) {
   const line = candidate.text;
