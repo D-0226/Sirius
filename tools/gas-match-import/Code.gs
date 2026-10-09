@@ -121,7 +121,7 @@ function previewReconciliationJune2026() {
     }
     if (isInternalSiriusMatch_(row.team)) {
       counts['集計対象外（SIRIUS内）']++;
-      console.log((index + 1) + '\\t集計対象外（SIRIUS内）' + '\\tdate=' + row.date + '\\tcategory=' + row.category + '\\topponent=' + row.team + '\\tscore=' + row.score + '\\tresult=' + row.result + '\\tsiriusTeam=' + row.siriusTeam + '\\tpkScore=' + row.pkScore);
+      console.log((index + 1) + '\t集計対象外（SIRIUS内）\tdate=' + row.date + '\tcategory=' + row.category + '\topponent=' + row.team + '\tscore=' + row.score + '\tresult=' + row.result + '\tsiriusTeam=' + row.siriusTeam + '\tpkScore=' + row.pkScore);
       return;
     }
     const key = makeMatchKey_(row.team, row.date, row.category, row.score, row.result);
@@ -151,7 +151,7 @@ function previewReconciliationJune2026() {
 
 /** 対戦相手がFC SIRIUS内のチーム名かを判定する。 */
 function isInternalSiriusMatch_(opponent) {
-  const normalized = normalizeMatchText_(opponent).replace(/[\\s\\u3000]+/g, '').toUpperCase();
+  const normalized = normalizeMatchText_(opponent).replace(/[\u3000\s]+/g, '').toUpperCase();
   return normalized.indexOf('FCSIRIUS') === 0 || normalized.indexOf('FCシリウス') === 0;
 }
 
