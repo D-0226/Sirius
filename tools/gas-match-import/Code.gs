@@ -100,7 +100,7 @@ function fetchMatchCandidates_(url) {
     // 時刻（例: 13時集合〜17:00）をスコアと誤認しないよう、
     // 自チーム名を含む行に限定する。集合・中止などの予定情報は対象外。
     if (!scorePattern.test(line)) continue;
-    if (!/FC\\s*SIRIUS|FCシリウス|シリウス/i.test(line)) continue;
+    if (!/FC\s*SIRIUS|FCシリウス|シリウス/i.test(line)) continue;
     if (/集合|中止|雨の為|雨天/.test(line)) continue;
 
     const key = currentDate + '|' + currentCategory + '|' + line;
