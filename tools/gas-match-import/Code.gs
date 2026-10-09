@@ -171,6 +171,147 @@ function previewMonthlyPageBatch() {
   console.log('プレビューのみ。シートへの書き込み・既存データの削除は行っていません。');
 }
 
+
+/**
+ * 全201ページの読み取り専用監査を開始する。最初の実行後は時間トリガーで自動継続する。
+ * 作業者はこの関数を1回実行するだけでよい。
+ */
+function startMonthlyPageAudit() {
+  const props = PropertiesService.getScriptProperties();
+  deleteMonthlyPageAuditTriggers_();
+  const inventory = fetchMonthlyPageInventory_();
+  const state = {
+    nextIndex: 1,
+    totalPages: inventory.length,
+    pagesOk: 0,
+    pagesFailed: 0,
+    retrySucceeded: 0,
+    candidates: 0,
+    parsed: 0,
+    parseFailures: 0,
+    internal: 0,
+    failedIndexes: []
+  };
+  props.setProperty('SIRIUS_MONTHLY_AUDIT_STATE', JSON.stringify(state));
+  console.log('全ページ監査を開始します。総ページ数=' + inventory.length + '。10ページ単位で自動継続します。');
+  continueMonthlyPageAudit_();
+}
+
+/** 時間トリガーから呼び出される自動継続処理。読み取り専用。 */
+function continueMonthlyPageAudit_() {
+  const props = PropertiesService.getScriptProperties();
+  const rawState = props.getProperty('SIRIUS_MONTHLY_AUDIT_STATE');
+  if (!rawState) {
+    console.log('監査状態がありません。startMonthlyPageAudit() を実行してください。');
+    deleteMonthlyPageAuditTriggers_();
+    return;
+  }
+  const state = JSON.parse(rawState);
+  const inventory = fetchMonthlyPageInventory_();
+  const batchSize = 10;
+  const startIndex = state.nextIndex;
+  const endIndex = Math.min(inventory.length, startIndex + batchSize - 1);
+  const startedAt = Date.now();
+
+  console.log('監査進捗: ' + startIndex + '-' + endIndex + ' / ' + inventory.length);
+  for (let index = startIndex; index <= endIndex; index++) {
+    // Apps Scriptの実行時間上限に余裕を持って、残り時間が少なければ次回へ回す。
+    if (Date.now() - startedAt > 210000) {
+      state.nextIndex = index;
+      props.setProperty('SIRIUS_MONTHLY_AUDIT_STATE', JSON.stringify(state));
+      scheduleMonthlyPageAuditContinuation_();
+      console.log('実行時間に余裕を持たせるため一時停止。次回はページ ' + index + ' から自動継続します。');
+      return;
+    }
+
+    const page = inventory[index - 1];
+    let result = fetchMatchCandidates_(page.url, page.year, page.month);
+    let retried = false;
+    if (result.status === 503) {
+      retried = true;
+      Utilities.sleep(2000);
+      result = fetchMatchCandidates_(page.url, page.year, page.month);
+      if (result.status >= 200 && result.status < 300) state.retrySucceeded++;
+    }
+
+    let parsed = 0;
+    let parseFailures = 0;
+    let internal = 0;
+    result.candidates.forEach(function(candidate) {
+      const row = parseCandidateToCsvRow_(candidate);
+      if (!row) {
+        parseFailures++;
+        return;
+      }
+      parsed++;
+      if (isInternalSiriusMatch_(row.team)) internal++;
+    });
+
+    if (result.status >= 200 && result.status < 300) {
+      state.pagesOk++;
+    } else {
+      state.pagesFailed++;
+      state.failedIndexes.push(index);
+      console.log('FETCH FAILURE page=' + index + ' date=' + page.year + '-' +
+        ('0' + page.month).slice(-2) + ' HTTP=' + result.status + ' url=' + page.url);
+    }
+    state.candidates += result.candidates.length;
+    state.parsed += parsed;
+    state.parseFailures += parseFailures;
+    state.internal += internal;
+    console.log(index + '\t' + page.year + '-' + ('0' + page.month).slice(-2) +
+      '\tHTTP=' + result.status + (retried ? '\tretried503=yes' : '') +
+      '\tcandidates=' + result.candidates.length + '\tparsed=' + parsed +
+      '\tparseFailures=' + parseFailures + '\tinternal=' + internal);
+    state.nextIndex = index + 1;
+    props.setProperty('SIRIUS_MONTHLY_AUDIT_STATE', JSON.stringify(state));
+  }
+
+  if (state.nextIndex <= inventory.length) {
+    scheduleMonthlyPageAuditContinuation_();
+    console.log('このバッチは完了。残りは自動で続行します。次ページ=' + state.nextIndex);
+    return;
+  }
+
+  deleteMonthlyPageAuditTriggers_();
+  console.log('========== 全ページ監査 最終結果 ==========');
+  console.log('pagesTotal=' + inventory.length);
+  console.log('pagesOK=' + state.pagesOk);
+  console.log('pagesFailed=' + state.pagesFailed);
+  console.log('retrySucceeded=' + state.retrySucceeded);
+  console.log('candidates=' + state.candidates);
+  console.log('parsed=' + state.parsed);
+  console.log('parseFailures=' + state.parseFailures);
+  console.log('internalSirius=' + state.internal);
+  if (state.failedIndexes.length) {
+    console.log('FAILED PAGE LIST');
+    state.failedIndexes.forEach(function(failedIndex) {
+      const failedPage = inventory[failedIndex - 1];
+      console.log(failedIndex + '\t' + failedPage.year + '-' +
+        ('0' + failedPage.month).slice(-2) + '\t' + failedPage.url);
+    });
+  } else {
+    console.log('FAILED PAGE LIST: none');
+  }
+  console.log('読み取り専用監査完了。シートへの書き込み・既存データの削除は行っていません。');
+  props.deleteProperty('SIRIUS_MONTHLY_AUDIT_STATE');
+}
+
+/** 自動継続トリガーを1つだけ予約する。 */
+function scheduleMonthlyPageAuditContinuation_() {
+  deleteMonthlyPageAuditTriggers_();
+  ScriptApp.newTrigger('continueMonthlyPageAudit_').timeBased().after(60 * 1000).create();
+}
+
+/** この監査用の継続トリガーだけを削除する。 */
+function deleteMonthlyPageAuditTriggers_() {
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === 'continueMonthlyPageAudit_') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+}
+
 /** 公式サイトの月別ページ一覧を取得して年月・URL配列を返す。 */
 function fetchMonthlyPageInventory_() {
   const response = UrlFetchApp.fetch(SIRIUS_IMPORT_CONFIG.indexPageUrl, {
