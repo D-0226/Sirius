@@ -32,14 +32,14 @@ function previewPKRowsJune2026() {
     if (!row.pkScore) return;
     pkCount++;
     console.log(
-      (pkCount) + '\\t' +
-      'team=' + row.team + '\\t' +
-      'siriusTeam=' + row.siriusTeam + '\\t' +
-      'date=' + candidate.date + '\\t' +
-      'category=' + candidate.category + '\\t' +
-      'score=' + row.score + '\\t' +
-      'result=' + row.result + '\\t' +
-      'pkScore=' + row.pkScore + '\\t' +
+      (pkCount) + '\t' +
+      'team=' + row.team + '\t' +
+      'siriusTeam=' + row.siriusTeam + '\t' +
+      'date=' + candidate.date + '\t' +
+      'category=' + candidate.category + '\t' +
+      'score=' + row.score + '\t' +
+      'result=' + row.result + '\t' +
+      'pkScore=' + row.pkScore + '\t' +
       'raw=' + candidate.text
     );
   });
