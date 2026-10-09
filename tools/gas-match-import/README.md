@@ -12,7 +12,7 @@ https://sc.footballnavi.jp/fcsirius/page.php?pno=2044
 1. Google Apps Scriptで新規プロジェクトを作成します。
 2. `Code.gs` の内容を貼り付けます。
 3. 初回は外部URLへのアクセス権限を承認します。
-4. まず `diagnoseJune2026Page` を実行し、HTTPステータス・HTMLタイトル・HTML断片が取得できるか確認します。
+4. まず `diagnoseJune2026Page` を実行し、HTTPステータス・日本語のHTMLタイトル・スコアを含むテキスト行が取得できるか確認します。
 5. 続けて `previewJune2026` を実行し、候補件数と候補テキストを確認します。
 6. 実行ログでHTMLが取得できていない場合や、スコア候補が0件の場合は、そのログをもとに抽出方法を見直します。
 
