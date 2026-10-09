@@ -52,6 +52,125 @@ function previewCsvJune2026() {
   console.log('CSV output (read-only preview):\n' + csvLines.join('\n'));
 }
 
+
+/**
+ * 既存の「全学年データ」タブと照合する（読み取り専用）。
+ * 一致行があってもA/Bチーム等を既存列だけで判別できないため、自動除外せず「要確認」とする。
+ * この関数は対象スプレッドシートに紐づいたGASで実行すること。
+ */
+function previewReconciliationJune2026() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error('対象スプレッドシートに紐づいたApps Scriptから実行してください。');
+  }
+
+  const sheet = ss.getSheetByName('全学年データ');
+  if (!sheet) {
+    throw new Error('タブ「全学年データ」が見つかりません。');
+  }
+
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 1) {
+    throw new Error('「全学年データ」にヘッダー行がありません。');
+  }
+
+  const headers = values[0].map(function(value) {
+    return String(value == null ? '' : value).trim();
+  });
+  const required = ['team', 'date', 'category', 'score', 'result'];
+  const indexes = {};
+  required.forEach(function(name) {
+    indexes[name] = headers.indexOf(name);
+    if (indexes[name] < 0) {
+      throw new Error('必要な列「' + name + '」が見つかりません。現在のヘッダー: ' + headers.join(','));
+    }
+  });
+
+  const tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
+  const existing = {};
+  let existingRows = 0;
+  for (let i = 1; i < values.length; i++) {
+    const record = values[i];
+    if (record.every(function(value) { return value === '' || value == null; })) continue;
+    const key = makeMatchKey_(
+      record[indexes.team],
+      normalizeSheetDate_(record[indexes.date], tz),
+      record[indexes.category],
+      record[indexes.score],
+      record[indexes.result]
+    );
+    existing[key] = (existing[key] || 0) + 1;
+    existingRows++;
+  }
+
+  const result = fetchMatchCandidates_(SIRIUS_IMPORT_CONFIG.previewPageUrl);
+  const counts = { '追加候補': 0, '要確認（一致候補あり）': 0, '解析失敗': 0 };
+  console.log('SOURCE: ' + SIRIUS_IMPORT_CONFIG.sourceLabel);
+  console.log('Spreadsheet: ' + ss.getName());
+  console.log('Sheet: ' + sheet.getName());
+  console.log('Existing data rows: ' + existingRows);
+  console.log('Fetched candidates: ' + result.candidates.length);
+  console.log('HTTP status: ' + result.status);
+
+  result.candidates.forEach(function(candidate, index) {
+    const row = parseCandidateToCsvRow_(candidate);
+    if (!row) {
+      counts['解析失敗']++;
+      console.log((index + 1) + '\t解析失敗\traw=' + candidate.text);
+      return;
+    }
+    const key = makeMatchKey_(row.team, row.date, row.category, row.score, row.result);
+    const matches = existing[key] || 0;
+    const status = matches > 0 ? '要確認（一致候補あり）' : '追加候補';
+    counts[status]++;
+    console.log(
+      (index + 1) + '\t' + status +
+      '\texistingMatches=' + matches +
+      '\tdate=' + row.date +
+      '\tcategory=' + row.category +
+      '\tteam=' + row.team +
+      '\tscore=' + row.score +
+      '\tresult=' + row.result +
+      '\tsiriusTeam=' + row.siriusTeam +
+      '\tpkScore=' + row.pkScore
+    );
+  });
+
+  console.log('Summary:');
+  console.log('追加候補=' + counts['追加候補']);
+  console.log('要確認（一致候補あり）=' + counts['要確認（一致候補あり）']);
+  console.log('解析失敗=' + counts['解析失敗']);
+  console.log('照合のみ。シートへの書き込み・変更は行っていません。');
+}
+
+function makeMatchKey_(team, date, category, score, result) {
+  return [
+    normalizeMatchText_(team),
+    normalizeMatchText_(date),
+    normalizeMatchText_(category),
+    normalizeMatchText_(score).replace(/[－―−：]/g, '-'),
+    normalizeMatchText_(result)
+  ].join('|');
+}
+
+function normalizeMatchText_(value) {
+  return String(value == null ? '' : value)
+    .replace(/[\u3000\s]+/g, ' ')
+    .trim();
+}
+
+function normalizeSheetDate_(value, timeZone) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, timeZone, 'yyyy-MM-dd');
+  }
+  const text = normalizeMatchText_(value);
+  const match = text.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+  if (match) {
+    return match[1] + '-' + ('0' + match[2]).slice(-2) + '-' + ('0' + match[3]).slice(-2);
+  }
+  return text;
+}
+
 /** CSVセルをエスケープする。 */
 function csvEscape_(value) {
   const text = value == null ? '' : String(value);
