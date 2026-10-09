@@ -54,6 +54,74 @@ function previewCsvJune2026() {
 
 
 /**
+ * 再構築用プレビュー（読み取り専用）。
+ * 既存データとの照合は行わず、公式サイトから取得した試合候補を分類して件数確認する。
+ * シートへの書き込み・既存データの削除は一切行わない。
+ */
+function previewRebuildJune2026() {
+  const result = fetchMatchCandidates_(SIRIUS_IMPORT_CONFIG.previewPageUrl);
+
+  console.log('SOURCE: ' + SIRIUS_IMPORT_CONFIG.sourceLabel);
+  console.log('URL: ' + SIRIUS_IMPORT_CONFIG.previewPageUrl);
+  console.log('HTTP status: ' + result.status);
+
+  // HTTPエラー時に「0件取得」と誤認して先に進まないよう、ここで停止する。
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error('公式サイトの取得に失敗しました。HTTP status=' + result.status + '。データは変更していません。');
+  }
+
+  const counts = {
+    '通常試合候補': 0,
+    '集計対象外（SIRIUS内）': 0,
+    '解析失敗': 0
+  };
+
+  console.log('Fetched candidates: ' + result.candidates.length);
+  result.candidates.forEach(function(candidate, index) {
+    const row = parseCandidateToCsvRow_(candidate);
+    if (!row) {
+      counts['解析失敗']++;
+      console.log((index + 1) + '\\t解析失敗\\traw=' + candidate.text);
+      return;
+    }
+
+    if (isInternalSiriusMatch_(row.team)) {
+      counts['集計対象外（SIRIUS内）']++;
+      console.log(
+        (index + 1) + '\\t集計対象外（SIRIUS内）' +
+        '\\tdate=' + row.date +
+        '\\tcategory=' + row.category +
+        '\\topponent=' + row.team +
+        '\\tscore=' + row.score +
+        '\\tresult=' + row.result +
+        '\\tsiriusTeam=' + row.siriusTeam +
+        '\\tpkScore=' + row.pkScore
+      );
+      return;
+    }
+
+    counts['通常試合候補']++;
+    console.log(
+      (index + 1) + '\\t通常試合候補' +
+      '\\tdate=' + row.date +
+      '\\tcategory=' + row.category +
+      '\\topponent=' + row.team +
+      '\\tscore=' + row.score +
+      '\\tresult=' + row.result +
+      '\\tsiriusTeam=' + row.siriusTeam +
+      '\\tpkScore=' + row.pkScore
+    );
+  });
+
+  console.log('Summary:');
+  console.log('取得候補=' + result.candidates.length);
+  console.log('通常試合候補=' + counts['通常試合候補']);
+  console.log('集計対象外（SIRIUS内）=' + counts['集計対象外（SIRIUS内）']);
+  console.log('解析失敗=' + counts['解析失敗']);
+  console.log('プレビューのみ。シートへの書き込み・既存データの削除は行っていません。');
+}
+
+/**
  * 既存の「全学年データ」タブと照合する（読み取り専用）。
  * 対戦相手がFC SIRIUS内のチーム名なら集計対象外とし、外部チームとの一致候補は「要確認」とする。
  * この関数は対象スプレッドシートに紐づいたGASで実行すること。
