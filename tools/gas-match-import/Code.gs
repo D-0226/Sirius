@@ -13,6 +13,40 @@ const SIRIUS_IMPORT_CONFIG = {
   maxCandidates: 150
 };
 
+/**
+ * PK戦スコアがある試合だけを抽出して確認する（読み取り専用）。
+ */
+function previewPKRowsJune2026() {
+  const result = fetchMatchCandidates_(SIRIUS_IMPORT_CONFIG.previewPageUrl);
+  let pkCount = 0;
+  let parseFailureCount = 0;
+  console.log('SOURCE: ' + SIRIUS_IMPORT_CONFIG.sourceLabel);
+  console.log('PK preview URL: ' + SIRIUS_IMPORT_CONFIG.previewPageUrl);
+  console.log('Candidate count: ' + result.candidates.length);
+  result.candidates.forEach(function(candidate, index) {
+    const row = parseCandidateToCsvRow_(candidate);
+    if (!row) {
+      parseFailureCount++;
+      return;
+    }
+    if (!row.pkScore) return;
+    pkCount++;
+    console.log(
+      (pkCount) + '\\t' +
+      'team=' + row.team + '\\t' +
+      'siriusTeam=' + row.siriusTeam + '\\t' +
+      'date=' + candidate.date + '\\t' +
+      'category=' + candidate.category + '\\t' +
+      'score=' + row.score + '\\t' +
+      'result=' + row.result + '\\t' +
+      'pkScore=' + row.pkScore + '\\t' +
+      'raw=' + candidate.text
+    );
+  });
+  console.log('PK rows found: ' + pkCount);
+  console.log('Parse failures: ' + parseFailureCount);
+}
+
 function previewJune2026() {
   const result = fetchMatchCandidates_(SIRIUS_IMPORT_CONFIG.previewPageUrl);
   console.log('SOURCE: ' + SIRIUS_IMPORT_CONFIG.sourceLabel);
