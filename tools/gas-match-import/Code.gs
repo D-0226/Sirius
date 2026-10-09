@@ -49,18 +49,18 @@ function diagnoseJune2026Page() {
   const html = response.getContentText('UTF-8');
   console.log('HTTP status: ' + response.getResponseCode());
   console.log('Content-Type: ' + (response.getHeaders()['Content-Type'] || '(unknown)'));
-  const title = html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   console.log('HTML title: ' + (title ? title[1].replace(/<[^>]+>/g, '').trim() : '(not found)'));
   console.log('HTML length: ' + html.length);
-  console.log('HTML preview (first 6000 chars):\\n' + html.slice(0, 6000));
+  console.log('HTML preview (first 6000 chars):\n' + html.slice(0, 6000));
 
-  const scorePattern = /[0-9]{1,2}\\s*[-－―−:：]\\s*[0-9]{1,2}/;
-  const fragments = html.match(/<(?:tr|li|p|div|td|dd|dt|article)\\b[^>]*>[\\s\\S]{0,1200}?<\\/(?:tr|li|p|div|td|dd|dt|article)>/gi) || [];
+  const scorePattern = /[0-9]{1,2}\s*[-－―−:：]\s*[0-9]{1,2}/;
+  const fragments = html.match(/<(?:tr|li|p|div|td|dd|dt|article)\b[^>]*>[\s\S]{0,1200}?<\/(?:tr|li|p|div|td|dd|dt|article)>/gi) || [];
   let printed = 0;
   fragments.forEach(function(fragment) {
     if (printed >= 40 || !scorePattern.test(fragment)) return;
     console.log('SCORE HTML FRAGMENT ' + (printed + 1) + ': ' +
-      fragment.replace(/\\s+/g, ' ').slice(0, 1000));
+      fragment.replace(/\s+/g, ' ').slice(0, 1000));
     printed++;
   });
   console.log('Score-containing HTML fragments: ' + printed);
