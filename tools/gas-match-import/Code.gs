@@ -28,10 +28,12 @@ function previewJune2026() {
     console.log(
       (index + 1) + '\t' +
       'team=' + (row ? row.team : '(要確認)') + '\t' +
+      'siriusTeam=' + (row ? row.siriusTeam : '(要確認)') + '\t' +
       'date=' + candidate.date + '\t' +
       'category=' + candidate.category + '\t' +
       'score=' + (row ? row.score : '(要確認)') + '\t' +
       'result=' + (row ? row.result : '(要確認)') + '\t' +
+      'pkScore=' + (row ? (row.pkScore || '-') : '(要確認)') + '\t' +
       'raw=' + candidate.text
     );
   });
@@ -50,6 +52,9 @@ function parseCandidateToCsvRow_(candidate) {
   const match = line.match(/^[〇×△]\s*(.*?)\s+(\d{1,2})\s*[-－―−:：]\s*(\d{1,2})(?:\s*\(PK[^)]*\))?\s*(.*)$/i);
   if (!match) return null;
 
+  const siriusTeam = (match[1] || '').replace(/\s+/g, ' ').trim();
+  const pkMatch = line.match(/\(PK\s*([0-9]{1,2})\s*[-－―−:：]\s*([0-9]{1,2})\)/i);
+  const pkScore = pkMatch ? pkMatch[1] + '-' + pkMatch[2] : '';
   let opponent = (match[4] || '').trim();
   opponent = opponent.replace(/\s*（FM）\s*$/i, '').replace(/\s*\(FM\)\s*$/i, '');
   opponent = opponent.replace(/\s+(?:予選リーグ.*|決勝戦|準決勝|準々決勝|\d+位通過|\d+位決定戦|\d+位決定リーグ).*$/, '').trim();
@@ -59,6 +64,8 @@ function parseCandidateToCsvRow_(candidate) {
   const resultLabel = resultMark === '〇' ? '勝' : resultMark === '×' ? '敗' : '分';
   return {
     team: opponent,
+    siriusTeam: siriusTeam,
+    pkScore: pkScore,
     date: candidate.date,
     category: candidate.category,
     score: match[2] + '-' + match[3],
