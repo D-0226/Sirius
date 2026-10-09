@@ -74,24 +74,24 @@ function previewMonthlyPageInventory() {
   }
 
   // 年度の見出しと月リンクをHTML上の順番で読み取る。
-  const anchorPattern = /<a\\b[^>]*href\\s*=\\s*["']([^"']*page\\.php\\?pno=\\d+[^"']*)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
+  const anchorPattern = /<a\b[^>]*href\s*=\s*["']([^"']*page\.php\?pno=\d+[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi;
   const anchors = [];
   let match;
   while ((match = anchorPattern.exec(html)) !== null) {
-    const label = htmlToPlainText_(match[2]).replace(/[\\t\\r\\n ]+/g, '').trim();
-    const monthMatch = label.match(/^(\\d{1,2})月$/);
+    const label = htmlToPlainText_(match[2]).replace(/[\t\r\n ]+/g, '').trim();
+    const monthMatch = label.match(/^(\d{1,2})月$/);
     if (!monthMatch) continue;
 
     const prefixText = htmlToPlainText_(html.slice(0, match.index))
-      .replace(/[\\t\\r\\n ]+/g, ' ');
-    const yearMatches = prefixText.match(/20\\d{2}年/g);
+      .replace(/[\t\r\n ]+/g, ' ');
+    const yearMatches = prefixText.match(/20\d{2}年/g);
     if (!yearMatches || yearMatches.length === 0) continue;
     const year = Number(yearMatches[yearMatches.length - 1].replace('年', ''));
     const month = Number(monthMatch[1]);
     const href = match[1].replace(/&amp;/gi, '&');
-    const absoluteUrl = /^https?:\\/\\//i.test(href)
+    const absoluteUrl = /^https?:\/\//i.test(href)
       ? href
-      : 'https://sc.footballnavi.jp/fcsirius/' + href.replace(/^\\.\\//, '').replace(/^\\//, '');
+      : 'https://sc.footballnavi.jp/fcsirius/' + href.replace(/^\.\//, '').replace(/^\//, '');
     anchors.push({ year: year, month: month, url: absoluteUrl });
   }
 
@@ -106,7 +106,7 @@ function previewMonthlyPageInventory() {
   console.log('Monthly page count: ' + anchors.length);
   anchors.forEach(function(item, index) {
     console.log(
-      (index + 1) + '\\t' + item.year + '-' + ('0' + item.month).slice(-2) + '\\t' + item.url
+      (index + 1) + '\t' + item.year + '-' + ('0' + item.month).slice(-2) + '\t' + item.url
     );
   });
   console.log('URL台帳プレビューのみ。シートへの書き込み・既存データの削除は行っていません。');
