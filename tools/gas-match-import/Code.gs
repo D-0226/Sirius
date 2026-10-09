@@ -46,7 +46,7 @@ function diagnoseJune2026Page() {
     muteHttpExceptions: true,
     followRedirects: true
   });
-  const html = response.getContentText('UTF-8');
+  const html = response.getContentText('Shift_JIS');
   console.log('HTTP status: ' + response.getResponseCode());
   console.log('Content-Type: ' + (response.getHeaders()['Content-Type'] || '(unknown)'));
   const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
@@ -79,7 +79,7 @@ function fetchMatchCandidates_(url) {
     }
   });
   const status = response.getResponseCode();
-  const html = response.getContentText('UTF-8');
+  const html = response.getContentText('Shift_JIS');
   if (status < 200 || status >= 300) {
     return { status: status, candidates: [] };
   }
