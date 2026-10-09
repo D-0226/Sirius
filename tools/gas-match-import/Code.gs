@@ -104,7 +104,7 @@ function previewReconciliationJune2026() {
   }
 
   const result = fetchMatchCandidates_(SIRIUS_IMPORT_CONFIG.previewPageUrl);
-  const counts = { '追加候補': 0, '要確認（一致候補あり）': 0, '解析失敗': 0 };
+  const counts = { '追加候補': 0, '要確認（一致候補あり）': 0, '集計対象外（SIRIUS内）': 0, '解析失敗': 0 };
   console.log('SOURCE: ' + SIRIUS_IMPORT_CONFIG.sourceLabel);
   console.log('Spreadsheet: ' + ss.getName());
   console.log('Sheet: ' + sheet.getName());
@@ -117,6 +117,11 @@ function previewReconciliationJune2026() {
     if (!row) {
       counts['解析失敗']++;
       console.log((index + 1) + '\t解析失敗\traw=' + candidate.text);
+      return;
+    }
+    if (isInternalSiriusMatch_(row.team)) {
+      counts['集計対象外（SIRIUS内）']++;
+      console.log((index + 1) + '\\t集計対象外（SIRIUS内）' + '\\tdate=' + row.date + '\\tcategory=' + row.category + '\\topponent=' + row.team + '\\tscore=' + row.score + '\\tresult=' + row.result + '\\tsiriusTeam=' + row.siriusTeam + '\\tpkScore=' + row.pkScore);
       return;
     }
     const key = makeMatchKey_(row.team, row.date, row.category, row.score, row.result);
@@ -139,8 +144,15 @@ function previewReconciliationJune2026() {
   console.log('Summary:');
   console.log('追加候補=' + counts['追加候補']);
   console.log('要確認（一致候補あり）=' + counts['要確認（一致候補あり）']);
+  console.log('集計対象外（SIRIUS内）=' + counts['集計対象外（SIRIUS内）']);
   console.log('解析失敗=' + counts['解析失敗']);
   console.log('照合のみ。シートへの書き込み・変更は行っていません。');
+}
+
+/** 対戦相手がFC SIRIUS内のチーム名かを判定する。 */
+function isInternalSiriusMatch_(opponent) {
+  const normalized = normalizeMatchText_(opponent).replace(/[\\s\\u3000]+/g, '').toUpperCase();
+  return normalized.indexOf('FCSIRIUS') === 0 || normalized.indexOf('FCシリウス') === 0;
 }
 
 function makeMatchKey_(team, date, category, score, result) {
