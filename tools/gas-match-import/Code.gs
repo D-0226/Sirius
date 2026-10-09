@@ -79,15 +79,29 @@ function previewMonthlyPageBatch() {
   const totals = {
     pagesOk: 0,
     pagesFailed: 0,
+    retrySucceeded: 0,
     candidates: 0,
     parsed: 0,
     parseFailures: 0,
     internal: 0
   };
+  const failedPages = [];
 
   batch.forEach(function(page, offset) {
-    const result = fetchMatchCandidates_(page.url, page.year, page.month);
     const pageNo = startIndex + offset;
+    let result = fetchMatchCandidates_(page.url, page.year, page.month);
+    let retried = false;
+
+    // 503だけを対象に、2秒待って1回だけ再試行する。無限リトライはしない。
+    if (result.status === 503) {
+      retried = true;
+      Utilities.sleep(2000);
+      result = fetchMatchCandidates_(page.url, page.year, page.month);
+      if (result.status >= 200 && result.status < 300) {
+        totals.retrySucceeded++;
+      }
+    }
+
     let parsed = 0;
     let failed = 0;
     let internal = 0;
@@ -95,7 +109,17 @@ function previewMonthlyPageBatch() {
       totals.pagesOk++;
     } else {
       totals.pagesFailed++;
+      failedPages.push({
+        pageNo: pageNo,
+        year: page.year,
+        month: page.month,
+        status: result.status,
+        url: page.url
+      });
+      console.log('FETCH FAILURE page=' + pageNo + ' date=' + page.year + '-' +
+        ('0' + page.month).slice(-2) + ' HTTP=' + result.status + ' url=' + page.url);
     }
+
     let failureSamples = 0;
     result.candidates.forEach(function(candidate) {
       const row = parseCandidateToCsvRow_(candidate);
@@ -110,6 +134,7 @@ function previewMonthlyPageBatch() {
       parsed++;
       if (isInternalSiriusMatch_(row.team)) internal++;
     });
+
     totals.candidates += result.candidates.length;
     totals.parsed += parsed;
     totals.parseFailures += failed;
@@ -117,6 +142,7 @@ function previewMonthlyPageBatch() {
     console.log(
       pageNo + '\\t' + page.year + '-' + ('0' + page.month).slice(-2) +
       '\\tHTTP=' + result.status +
+      (retried ? '\\tretried503=yes' : '') +
       '\\tcandidates=' + result.candidates.length +
       '\\tparsed=' + parsed +
       '\\tparseFailures=' + failed +
@@ -128,10 +154,20 @@ function previewMonthlyPageBatch() {
   console.log('BATCH SUMMARY');
   console.log('pagesOK=' + totals.pagesOk);
   console.log('pagesFailed=' + totals.pagesFailed);
+  console.log('retrySucceeded=' + totals.retrySucceeded);
   console.log('candidates=' + totals.candidates);
   console.log('parsed=' + totals.parsed);
   console.log('parseFailures=' + totals.parseFailures);
   console.log('internalSirius=' + totals.internal);
+  if (failedPages.length > 0) {
+    console.log('FAILED PAGE LIST (再実行・後日確認用)');
+    failedPages.forEach(function(page) {
+      console.log(page.pageNo + '\\t' + page.year + '-' + ('0' + page.month).slice(-2) +
+        '\\tHTTP=' + page.status + '\\t' + page.url);
+    });
+  } else {
+    console.log('FAILED PAGE LIST: none');
+  }
   console.log('プレビューのみ。シートへの書き込み・既存データの削除は行っていません。');
 }
 
