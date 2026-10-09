@@ -81,35 +81,35 @@ function previewRebuildJune2026() {
     const row = parseCandidateToCsvRow_(candidate);
     if (!row) {
       counts['解析失敗']++;
-      console.log((index + 1) + '\\t解析失敗\\traw=' + candidate.text);
+      console.log((index + 1) + '\t解析失敗\traw=' + candidate.text);
       return;
     }
 
     if (isInternalSiriusMatch_(row.team)) {
       counts['集計対象外（SIRIUS内）']++;
       console.log(
-        (index + 1) + '\\t集計対象外（SIRIUS内）' +
-        '\\tdate=' + row.date +
-        '\\tcategory=' + row.category +
-        '\\topponent=' + row.team +
-        '\\tscore=' + row.score +
-        '\\tresult=' + row.result +
-        '\\tsiriusTeam=' + row.siriusTeam +
-        '\\tpkScore=' + row.pkScore
+        (index + 1) + '\t集計対象外（SIRIUS内）' +
+        '\tdate=' + row.date +
+        '\tcategory=' + row.category +
+        '\topponent=' + row.team +
+        '\tscore=' + row.score +
+        '\tresult=' + row.result +
+        '\tsiriusTeam=' + row.siriusTeam +
+        '\tpkScore=' + row.pkScore
       );
       return;
     }
 
     counts['通常試合候補']++;
     console.log(
-      (index + 1) + '\\t通常試合候補' +
-      '\\tdate=' + row.date +
-      '\\tcategory=' + row.category +
-      '\\topponent=' + row.team +
-      '\\tscore=' + row.score +
-      '\\tresult=' + row.result +
-      '\\tsiriusTeam=' + row.siriusTeam +
-      '\\tpkScore=' + row.pkScore
+      (index + 1) + '\t通常試合候補' +
+      '\tdate=' + row.date +
+      '\tcategory=' + row.category +
+      '\topponent=' + row.team +
+      '\tscore=' + row.score +
+      '\tresult=' + row.result +
+      '\tsiriusTeam=' + row.siriusTeam +
+      '\tpkScore=' + row.pkScore
     );
   });
 
