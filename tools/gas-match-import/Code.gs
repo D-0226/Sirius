@@ -757,13 +757,13 @@ function previewJune2026() {
  */
 function parseCandidateToCsvRow_(candidate) {
   const line = normalizeMatchText_(candidate.text);
-  const markMatch = line.match(/^([〇○◯×△])\\s*(.*)$/);
+  const markMatch = line.match(/^([〇○◯×△])\s*(.*)$/);
   if (!markMatch) return null;
 
   const resultMark = markMatch[1];
   const body = markMatch[2].trim();
   // PK/POK表記、またはカッコ内の単独スコア（例: (0-1)）をPKスコアとして扱う。
-  const parenMatch = body.match(/[（(]\\s*(?:P(?:K|OK)\\s*)?([0-9]{1,2})\\s*[-－―−:：]\\s*([0-9]{1,2})\\s*[）)]/i);
+  const parenMatch = body.match(/[（(]\s*(?:P(?:K|OK)\s*)?([0-9]{1,2})\s*[-－―−:：]\s*([0-9]{1,2})\s*[）)]/i);
   const pkScore = parenMatch ? parenMatch[1] + '-' + parenMatch[2] : '';
   const withoutParenScore = parenMatch
     ? body.slice(0, parenMatch.index) + ' ' + body.slice(parenMatch.index + parenMatch[0].length)
@@ -773,7 +773,7 @@ function parseCandidateToCsvRow_(candidate) {
   let opponent = '';
   let score = '';
   // 通常スコアがある行。カッコ内PKスコアを除去してから通常スコアを抽出する。
-  const scoreMatch = withoutParenScore.match(/^(.*?)\\s+([0-9]{1,2})\\s*[-－―−:：]\\s*([0-9]{1,2})\\s+(.*)$/);
+  const scoreMatch = withoutParenScore.match(/^(.*?)\s+([0-9]{1,2})\s*[-－―−:：]\s*([0-9]{1,2})\s+(.*)$/);
   if (scoreMatch) {
     siriusTeam = (scoreMatch[1] || '').trim();
     score = scoreMatch[2] + '-' + scoreMatch[3];
@@ -786,16 +786,16 @@ function parseCandidateToCsvRow_(candidate) {
     return null;
   }
 
-  opponent = opponent.replace(/\\s*[（(]FM[）)]\\s*$/i, '');
-  opponent = opponent.replace(/\\s+(?:予選リーグ.*|決勝戦|準決勝|準々決勝|\\d+位通過|\\d+位決定戦|\\d+位決定リーグ).*$/, '').trim();
+  opponent = opponent.replace(/\s*[（(]FM[）)]\s*$/i, '');
+  opponent = opponent.replace(/\s+(?:予選リーグ.*|決勝戦|準決勝|準々決勝|\d+位通過|\d+位決定戦|\d+位決定リーグ).*$/, '').trim();
   if (!siriusTeam || !opponent) return null;
 
   const officialResult = (resultMark === '〇' || resultMark === '○' || resultMark === '◯')
     ? '勝'
     : resultMark === '×' ? '敗' : '分';
   let result = officialResult;
-  const normalScoreParts = score.match(/^(\\d+)-(\\d+)$/);
-  const pkScoreParts = pkScore.match(/^(\\d+)-(\\d+)$/);
+  const normalScoreParts = score.match(/^(\d+)-(\d+)$/);
+  const pkScoreParts = pkScore.match(/^(\d+)-(\d+)$/);
   // 通常スコアが明確に勝敗を示す場合はスコアを優先する。
   // 通常スコアが同点でPKスコアがある場合はPK結果を優先する。
   // 同点かつPKスコアなしの場合は、公式サイトの結果記号を維持する。
