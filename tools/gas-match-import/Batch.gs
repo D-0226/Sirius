@@ -110,6 +110,7 @@ function runSiriusImportBatch() {
     const reviewRowsToAppend = [];
     const batchExternalExact = new Set();
     const batchExternalIdentity = new Map();
+    const batchExternalLegacyIdentity = new Set();
     const batchInternalExact = new Set();
 
     parsedRecords.forEach(function(record) {
@@ -178,7 +179,9 @@ function runSiriusImportBatch() {
         summary.duplicates++;
         return;
       }
-      const oldExternal = externalState.byIdentity.get(identityKey) || batchExternalIdentity.get(identityKey);
+      const legacyKey = siriusExternalLegacyIdentityKey_(external);
+      const oldExternal = externalState.byIdentity.get(identityKey) || batchExternalIdentity.get(identityKey) ||
+        externalState.legacyByIdentity.get(legacyKey) || (batchExternalLegacyIdentity.has(legacyKey) ? { legacyRecord: true } : null);
       if (oldExternal) {
         summary.review++;
         reviewRowsToAppend.push([
@@ -190,7 +193,8 @@ function runSiriusImportBatch() {
 
       batchExternalExact.add(exactKey);
       batchExternalIdentity.set(identityKey, external);
-      externalRowsToAppend.push(siriusMapExternalRow_(externalHeaders, external));
+      batchExternalLegacyIdentity.add(legacyKey);
+      externalRowsToAppend(siriusMapExternalRow_(externalHeaders, external));
       externalState.exact.add(exactKey);
       externalState.byIdentity.set(identityKey, external);
       summary.addedExternal++;
@@ -278,6 +282,7 @@ function loadSiriusExternalState_(sheet, headers, ss) {
   const tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
   const exact = new Set();
   const byIdentity = new Map();
+  const legacyByIdentity = new Map();
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
     if (r.every(function(v) { return v === '' || v == null; })) continue;
@@ -290,8 +295,14 @@ function loadSiriusExternalState_(sheet, headers, ss) {
     exact.add(siriusExternalExactKey_(obj));
     const identity = siriusExternalIdentityKey_(obj);
     if (!byIdentity.has(identity)) byIdentity.set(identity, obj);
+    // 旧データにsiriusTeam列がない／空欄の場合、歴史データの再取込を避けるため
+    // 日付・カテゴリ・対戦相手が一致した候補は自動追加せず要確認に回す。
+    if (!normalizeMatchText_(obj.siriusTeam)) {
+      const legacyIdentity = siriusExternalLegacyIdentityKey_(obj);
+      if (!legacyByIdentity.has(legacyIdentity)) legacyByIdentity.set(legacyIdentity, obj);
+    }
   }
-  return { exact: exact, byIdentity: byIdentity };
+  return { exact: exact, byIdentity: byIdentity, legacyByIdentity: legacyByIdentity };
 }
 
 function loadSiriusInternalState_(sheet) {
@@ -328,6 +339,13 @@ function siriusExternalExactKey_(m) {
     normalizeMatchText_(m.team), normalizeMatchText_(m.date), normalizeMatchText_(m.category),
     normalizeMatchText_(m.score).replace(/[－―−：]/g, '-'), normalizeMatchText_(m.result),
     normalizeMatchText_(m.siriusTeam), normalizeMatchText_(m.pkScore).replace(/[－―−：]/g, '-')
+  ].join('|');
+}
+
+function siriusExternalLegacyIdentityKey_(m) {
+  return [
+    normalizeMatchText_(m.date), normalizeMatchText_(m.category),
+    normalizeMatchText_(m.team)
   ].join('|');
 }
 
