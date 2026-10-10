@@ -11,7 +11,7 @@ const SIRIUS_IMPORT_CONFIG = {
   sourceLabel: 'FC SIRIUS公式サイト 2026年6月',
   sourceYear: 2026,
   sourceMonth: 6,
-  maxCandidates: 150,
+  // 候補数の上限は設けない。月別ページ内の全候補を走査する。
   batchStartIndex: 1,
   batchSize: 10
 };
@@ -757,29 +757,62 @@ function previewJune2026() {
  */
 function parseCandidateToCsvRow_(candidate) {
   const line = normalizeMatchText_(candidate.text);
-  // 公式ページには勝ちマーク「○」「〇」「◯」が混在し、PK表記には全角括弧もある。
-  const match = line.match(/^[〇○◯×△]\s*(.*?)\s+(\d{1,2})\s*[-－―−:：]\s*(\d{1,2})(?:\s*[（(]\s*PK\s*([0-9]{1,2})\s*[-－―−:：]\s*([0-9]{1,2})\s*[）)])?\s*(.*)$/i);
-  if (!match) return null;
+  const markMatch = line.match(/^([〇○◯×△])\\s*(.*)$/);
+  if (!markMatch) return null;
 
-  const siriusTeam = (match[1] || '').replace(/\s+/g, ' ').trim();
-  const pkScore = match[4] && match[5] ? match[4] + '-' + match[5] : '';
-  let opponent = (match[6] || '').trim();
-  opponent = opponent.replace(/\s*[（(]FM[）)]\s*$/i, '');
-  opponent = opponent.replace(/\s+(?:予選リーグ.*|決勝戦|準決勝|準々決勝|\d+位通過|\d+位決定戦|\d+位決定リーグ).*$/, '').trim();
-  if (!opponent) return null;
+  const resultMark = markMatch[1];
+  const body = markMatch[2].trim();
+  // PK/POK表記、またはカッコ内の単独スコア（例: (0-1)）をPKスコアとして扱う。
+  const parenMatch = body.match(/[（(]\\s*(?:P(?:K|OK)\\s*)?([0-9]{1,2})\\s*[-－―−:：]\\s*([0-9]{1,2})\\s*[）)]/i);
+  const pkScore = parenMatch ? parenMatch[1] + '-' + parenMatch[2] : '';
+  const withoutParenScore = parenMatch
+    ? body.slice(0, parenMatch.index) + ' ' + body.slice(parenMatch.index + parenMatch[0].length)
+    : body;
 
-  const resultMark = line.charAt(0);
-  const resultLabel = (resultMark === '〇' || resultMark === '○' || resultMark === '◯')
+  let siriusTeam = '';
+  let opponent = '';
+  let score = '';
+  // 通常スコアがある行。カッコ内PKスコアを除去してから通常スコアを抽出する。
+  const scoreMatch = withoutParenScore.match(/^(.*?)\\s+([0-9]{1,2})\\s*[-－―−:：]\\s*([0-9]{1,2})\\s+(.*)$/);
+  if (scoreMatch) {
+    siriusTeam = (scoreMatch[1] || '').trim();
+    score = scoreMatch[2] + '-' + scoreMatch[3];
+    opponent = (scoreMatch[4] || '').trim();
+  } else if (parenMatch) {
+    // PK戦のみの行（例: FC SIRIUS A (PK4-3) REPLO）。
+    siriusTeam = body.slice(0, parenMatch.index).trim();
+    opponent = body.slice(parenMatch.index + parenMatch[0].length).trim();
+  } else {
+    return null;
+  }
+
+  opponent = opponent.replace(/\\s*[（(]FM[）)]\\s*$/i, '');
+  opponent = opponent.replace(/\\s+(?:予選リーグ.*|決勝戦|準決勝|準々決勝|\\d+位通過|\\d+位決定戦|\\d+位決定リーグ).*$/, '').trim();
+  if (!siriusTeam || !opponent) return null;
+
+  const officialResult = (resultMark === '〇' || resultMark === '○' || resultMark === '◯')
     ? '勝'
     : resultMark === '×' ? '敗' : '分';
+  let result = officialResult;
+  const normalScoreParts = score.match(/^(\\d+)-(\\d+)$/);
+  const pkScoreParts = pkScore.match(/^(\\d+)-(\\d+)$/);
+  // 通常スコアが明確に勝敗を示す場合はスコアを優先する。
+  // 通常スコアが同点でPKスコアがある場合はPK結果を優先する。
+  // 同点かつPKスコアなしの場合は、公式サイトの結果記号を維持する。
+  if (normalScoreParts && Number(normalScoreParts[1]) !== Number(normalScoreParts[2])) {
+    result = Number(normalScoreParts[1]) > Number(normalScoreParts[2]) ? '勝' : '敗';
+  } else if (pkScoreParts && Number(pkScoreParts[1]) !== Number(pkScoreParts[2])) {
+    result = Number(pkScoreParts[1]) > Number(pkScoreParts[2]) ? '勝' : '敗';
+  }
+
   return {
     team: opponent,
     siriusTeam: siriusTeam,
     pkScore: pkScore,
     date: candidate.date,
     category: candidate.category,
-    score: match[2] + '-' + match[3],
-    result: resultLabel
+    score: score,
+    result: result
   };
 }
 
@@ -841,7 +874,7 @@ function fetchMatchCandidates_(url, sourceYear, sourceMonth) {
   const categoryPattern = /U\s*[-－]?\s*(\d{1,2})[^\n]{0,12}/i;
   const scorePattern = /(?:^|[^0-9])([0-9]{1,2})\s*[-－―−:：]\s*([0-9]{1,2})(?:$|[^0-9])/;
 
-  for (let i = 0; i < lines.length && candidates.length < SIRIUS_IMPORT_CONFIG.maxCandidates; i++) {
+  for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const dateMatch = line.match(dateHeaderPattern);
     if (dateMatch) {
