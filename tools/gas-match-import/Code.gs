@@ -179,7 +179,9 @@ function previewMonthlyPageBatch() {
 function startMonthlyPageAudit() {
   const props = PropertiesService.getScriptProperties();
   deleteMonthlyPageAuditTriggers_();
-  const inventory = fetchMonthlyPageInventory_();
+  const inventory = fetchMonthlyPageInventory_().filter(function(page) {
+    return page.year > 2025 || (page.year === 2025 && page.month >= 4);
+  });
   const state = {
     nextIndex: 1,
     totalPages: inventory.length,
@@ -193,7 +195,7 @@ function startMonthlyPageAudit() {
     failedIndexes: []
   };
   props.setProperty('SIRIUS_MONTHLY_AUDIT_STATE', JSON.stringify(state));
-  console.log('全ページ監査を開始します。総ページ数=' + inventory.length + '。10ページ単位で自動継続します。');
+  console.log('対象期間: 2025年4月以降。対象月別ページ数=' + inventory.length + '。10ページ単位で自動継続します。');
   continueMonthlyPageAudit_();
 }
 
@@ -207,13 +209,15 @@ function continueMonthlyPageAudit_() {
     return;
   }
   const state = JSON.parse(rawState);
-  const inventory = fetchMonthlyPageInventory_();
+  const inventory = fetchMonthlyPageInventory_().filter(function(page) {
+    return page.year > 2025 || (page.year === 2025 && page.month >= 4);
+  });
   const batchSize = 10;
   const startIndex = state.nextIndex;
   const endIndex = Math.min(inventory.length, startIndex + batchSize - 1);
   const startedAt = Date.now();
 
-  console.log('監査進捗: ' + startIndex + '-' + endIndex + ' / ' + inventory.length);
+  console.log('監査進捗（2025年4月以降）: ' + startIndex + '-' + endIndex + ' / ' + inventory.length);
   for (let index = startIndex; index <= endIndex; index++) {
     // Apps Scriptの実行時間上限に余裕を持って、残り時間が少なければ次回へ回す。
     if (Date.now() - startedAt > 210000) {
