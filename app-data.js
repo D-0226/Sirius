@@ -86,7 +86,40 @@ function findTeamPoint(name){
 }
 
 function matchKey(teamId, m){
-  return [teamId, m.date||'', m.category||'', m.score||'', m.result||''].join('|');
+  return [teamId, m.date||'', m.category||'', m.score||'', m.result||'', m.siriusTeam||'', m.pkScore||''].join('|');
+}
+
+function isSiriusTeamName(name){
+  const n=String(name||'').replace(/[\\s\\u3000]+/g,'').toUpperCase();
+  return n.indexOf('FCSIRIUS')===0 || n.indexOf('FCシリウス')===0;
+}
+function normalizeInternalTeamName(name){
+  return String(name||'').replace(/[\\s\\u3000]+/g,'').toUpperCase();
+}
+function flipResult(result){
+  return result==='勝'?'敗':result==='敗'?'勝':result;
+}
+function invertScore(score){
+  const m=String(score||'').match(/^(\\d+)\\s*[-－―−:]\\s*(\\d+)$/);
+  return m ? m[2]+'-'+m[1] : String(score||'');
+}
+function upsertInternalMatch(row){
+  const side=String(row.siriusTeam||'').trim(), opponent=String(row.team||'').trim();
+  if(!side || !opponent || !isSiriusTeamName(side) || !isSiriusTeamName(opponent)) return false;
+  const sideFirst=normalizeInternalTeamName(side).localeCompare(normalizeInternalTeamName(opponent),'en')<=0;
+  const teamA=sideFirst?side:opponent, teamB=sideFirst?opponent:side;
+  const score=sideFirst?row.score:invertScore(row.score);
+  const pkScore=sideFirst?row.pkScore:invertScore(row.pkScore);
+  let result=sideFirst?row.result:flipResult(row.result);
+  const scoreParts=String(score||'').match(/^(\\d+)-(\\d+)$/);
+  const pkParts=String(pkScore||'').match(/^(\\d+)-(\\d+)$/);
+  if(scoreParts && Number(scoreParts[1])!==Number(scoreParts[2])) result=Number(scoreParts[1])>Number(scoreParts[2])?'勝':'敗';
+  else if(pkParts && Number(pkParts[1])!==Number(pkParts[2])) result=Number(pkParts[1])>Number(pkParts[2])?'勝':'敗';
+  const item={date:row.date||'',category:row.category||'',teamA,teamB,score,pkScore,result,matchType:'internal',source:'official'};
+  const key=[item.date,item.category,normalizeInternalTeamName(teamA),normalizeInternalTeamName(teamB),item.score,item.pkScore].join('|');
+  if(internalMatches.some(m=>[m.date,m.category,normalizeInternalTeamName(m.teamA),normalizeInternalTeamName(m.teamB),m.score||'',m.pkScore||''].join('|')===key)) return false;
+  internalMatches.push(item);
+  return true;
 }
 
 function refreshMarkerVisual(p){
@@ -166,13 +199,16 @@ function importRows(rows){
   }
 
   if((header.includes('team') || header.includes('チーム名')) && (header.includes('date') || header.includes('日付'))){
-    // シンプル形式: team/チーム名, date/日付, category/カテゴリ, score/スコア, result/結果
+    // シンプル形式: team,date,category,score,result + optional siriusTeam,pkScore,matchType
     const iTeam = col('team')>=0?col('team'):col('チーム名');
     const iDate = col('date')>=0?col('date'):col('日付');
     const iCat = col('category')>=0?col('category'):col('カテゴリ');
     const iScore = col('score')>=0?col('score'):col('スコア');
     const iRes = col('result')>=0?col('result'):col('結果');
-    let added=0, dup=0, noTeam=0; const unmatched = new Set(); const touched = new Set();
+    const iSiriusTeam = col('siriusTeam');
+    const iPkScore = col('pkScore');
+    const iMatchType = col('matchType')>=0?col('matchType'):col('試合区分');
+    let added=0, dup=0, noTeam=0, internalAdded=0, internalDup=0; const unmatched = new Set(); const touched = new Set();
     const existingKeys = new Set();
     points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m))));
     for(let i=headerIdx+1;i<rows.length;i++){
@@ -180,16 +216,27 @@ function importRows(rows){
       if(r.every(c=> c===undefined || c===null || String(c).trim()==='')) continue;
       const teamRaw = String(r[iTeam]==null?'':r[iTeam]).trim();
       if(!teamRaw) continue;
+      const date = normalizeDateStr(String(r[iDate]==null?'':r[iDate]));
+      const category = String(iCat>=0 && r[iCat]!=null?r[iCat]:'').trim();
+      const score = String(iScore>=0 && r[iScore]!=null?r[iScore]:'').trim();
+      const resultRaw = String(iRes>=0 && r[iRes]!=null?r[iRes]:'').trim();
+      const result = RESULT_MAP[resultRaw] || resultRaw;
+      const siriusTeam = String(iSiriusTeam>=0 && r[iSiriusTeam]!=null?r[iSiriusTeam]:'').trim();
+      const pkScore = String(iPkScore>=0 && r[iPkScore]!=null?r[iPkScore]:'').trim();
+      const matchTypeRaw = String(iMatchType>=0 && r[iMatchType]!=null?r[iMatchType]:'').trim().toLowerCase();
+      const isInternal = matchTypeRaw==='internal' || matchTypeRaw==='チーム内' ||
+        (isSiriusTeamName(teamRaw) && isSiriusTeamName(siriusTeam));
+      if(isInternal){
+        const inserted=upsertInternalMatch({team:teamRaw,siriusTeam:siriusTeam,date,category,score,pkScore,result});
+        if(inserted) internalAdded++; else internalDup++;
+        continue;
+      }
       const p = findTeamPoint(teamRaw);
       if(!p){ noTeam++; unmatched.add(teamRaw); continue; }
-      const date = normalizeDateStr(String(r[iDate]==null?'':r[iDate]));
-      const category = String(r[iCat]==null?'':r[iCat]).trim();
-      const score = String(r[iScore]==null?'':r[iScore]).trim();
-      const resultRaw = String(r[iRes]==null?'':r[iRes]).trim();
-      const result = RESULT_MAP[resultRaw] || resultRaw;
-      const key = matchKey(p.id, {date, category, score, result});
+      const match = {date, category, score, result, siriusTeam, pkScore, matchType:'external'};
+      const key = matchKey(p.id, match);
       if(existingKeys.has(key)){ dup++; continue; }
-      addMatch(p.id, {date, category, score, result}, {silent:true});
+      addMatch(p.id, match, {silent:true});
       existingKeys.add(key);
       touched.add(p.id);
       added++;
@@ -197,8 +244,9 @@ function importRows(rows){
     touched.forEach(id=>{ const p = points.find(pp=>pp.id===id); if(p) refreshMarkerVisual(p); });
     renderList();
     persist();
-    let msg = `戦績 ${added}件登録`;
+    let msg = `対外戦績 ${added}件登録`;
     if(dup) msg += `／重複${dup}件スキップ`;
+    if(internalAdded || internalDup) msg += `／チーム内対戦 ${internalAdded}件追加・重複${internalDup}件`;
     if(noTeam) msg += `／該当チーム無し${noTeam}件`;
     toast(msg);
     if(unmatched.size) console.warn('未マッチのチーム名:', [...unmatched]);
