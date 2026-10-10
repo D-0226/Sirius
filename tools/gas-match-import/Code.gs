@@ -184,6 +184,15 @@ function startMonthlyPageAudit() {
   const inventory = fetchMonthlyPageInventory_();
   saveMonthlyPageAuditInventory_(inventory);
 
+  const yearCounts = {};
+  inventory.forEach(function(page) {
+    yearCounts[page.year] = (yearCounts[page.year] || 0) + 1;
+  });
+  console.log('監査対象範囲=2025年以降');
+  Object.keys(yearCounts).sort().forEach(function(year) {
+    console.log('対象ページ数 ' + year + '年=' + yearCounts[year]);
+  });
+
   const state = {
     nextIndex: 1,
     totalPages: inventory.length,
@@ -406,13 +415,13 @@ function fetchMonthlyPageInventory_() {
     pages.push({ year: year, month: month, url: url });
   }
 
-  // 対象範囲を2025年4月以降に限定する（2025年4月を含む）。
+  // 対象範囲を2025年1月以降に限定する。
   const targetPages = pages.filter(function(page) {
-    return page.year > 2025 || (page.year === 2025 && page.month >= 4);
+    return page.year >= 2025;
   });
   targetPages.sort(function(a, b) { return a.year - b.year || a.month - b.month; });
   if (targetPages.length === 0) {
-    throw new Error('月別ページのリンクを抽出できませんでした。HTML構造を確認してください。');
+    throw new Error('2025年以降の月別ページを抽出できませんでした。HTML構造を確認してください。');
   }
   return targetPages;
 }
