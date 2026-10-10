@@ -39,7 +39,7 @@ Batch.gsを同じApps Scriptプロジェクトへ追加すると、Googleスプ�
 ### 初期設定
 
 1. スプレッドシートに紐づいたApps Scriptを開き、既存のCode.gsに加えてBatch.gsを追加します。
-2. setupSiriusImportDailyTriggerを手動実行し、権限を承認します。毎日午前3時台に実行するトリガーが登録されます（Google側の実行時刻には幅があります）。
+2. Apps Scriptのプロジェクト設定でタイムゾーンをAsia/Tokyoに設定し、setupSiriusImportDailyTriggerを手動実行して権限を承認します。毎日午前3時台に実行するトリガーが登録されます（Google側の実行時刻には幅があります）。
 3. 初回の動作確認はrunSiriusImportBatchを手動実行し、各タブと「取込ログ」を確認します。
 4. 停止する場合はstopSiriusImportDailyTriggerを実行します。データは削除されません。
 
