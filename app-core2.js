@@ -413,6 +413,13 @@ async function loadPersisted(){
       const saved = JSON.parse(res.value);
       if(Array.isArray(saved)){
         points = saved;
+        // 旧版で「FC SIRIUS」地点に紐づいていた内部対戦は、
+        // A/B区分を復元できないため保持したまま集計対象外としてマークする。
+        points.forEach(p=>{
+          if(typeof isSiriusTeamName==='function' && isSiriusTeamName(p.name) && Array.isArray(p.matches)){
+            p.matches=p.matches.map(m=>m.matchType ? m : {...m,matchType:'internal'});
+          }
+        });
         nextId = points.reduce((m,p)=>Math.max(m,p.id),0) + 1;
       }
     }
