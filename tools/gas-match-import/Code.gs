@@ -816,6 +816,34 @@ function parseCandidateToCsvRow_(candidate) {
   };
 }
 
+
+/**
+ * 最終版パーサーの回帰確認。公式サイトへのアクセスやシート書き込みは行わない。
+ * 実行ログで全ケース PASS になることを確認する。
+ */
+function testFinalMatchParser() {
+  const cases = [
+    {name:'公式記号を維持（同点・PK記載なし）', text:'〇 FC SIRIUS B 1−1 西中FC', score:'1-1', pkScore:'', result:'勝', team:'西中FC'},
+    {name:'PKスコアで敗北判定', text:'× FC SIRIUS 0−0(0-1) Citta Solare', score:'0-0', pkScore:'0-1', result:'敗', team:'Citta Solare'},
+    {name:'POK誤記をPKとして扱う', text:'× FC SIRIUS A 0−0(POK1-2) 初倉FC', score:'0-0', pkScore:'1-2', result:'敗', team:'初倉FC'},
+    {name:'通常スコアで勝利へ補正', text:'△ FC SIRIUS 2−0 HAPPINESS 1位通過', score:'2-0', pkScore:'', result:'勝', team:'HAPPINESS'},
+    {name:'通常スコアで敗北へ補正', text:'〇 FC SIRIUS 1.2年グリーン 1−2 高山ウイングス 2.3年 決勝戦', score:'1-2', pkScore:'', result:'敗', team:'高山ウイングス 2.3年'},
+    {name:'PK戦のみ', text:'〇 FC SIRIUS A (PK4-3) REPLO 決勝戦', score:'', pkScore:'4-3', result:'勝', team:'REPLO'}
+  ];
+  let passed = 0;
+  cases.forEach(function(testCase) {
+    const row = parseCandidateToCsvRow_({text:testCase.text,date:'2025-08-01',category:'U-12'});
+    const ok = !!row && row.score === testCase.score && row.pkScore === testCase.pkScore &&
+      row.result === testCase.result && row.team === testCase.team;
+    console.log((ok ? 'PASS' : 'FAIL') + ' ' + testCase.name +
+      ' expected=' + JSON.stringify({team:testCase.team,score:testCase.score,pkScore:testCase.pkScore,result:testCase.result}) +
+      ' actual=' + JSON.stringify(row));
+    if (ok) passed++;
+  });
+  console.log('FINAL PARSER TEST: ' + passed + '/' + cases.length + ' passed');
+  if (passed !== cases.length) throw new Error('パーサー回帰テストに失敗しました。ログのFAIL行を確認してください。');
+}
+
 /** 公式ページの文字コード・タイトル・スコア行を診断する。 */
 function diagnoseJune2026Page() {
   const response = UrlFetchApp.fetch(SIRIUS_IMPORT_CONFIG.previewPageUrl, {
