@@ -45,6 +45,7 @@ function gradeSummary(matches, grade){
 
 /* ---------------- state ---------------- */
 let points = [];        // {id, name, lat, lng}
+let internalMatches = []; // SIRIUS内のA/B/C等の対戦。対外戦績・地図マーカー集計からは分離
 let markers = {};        // id -> leaflet marker
 let nextId = 1;
 let clickModeOn = false;
