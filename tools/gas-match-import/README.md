@@ -6,28 +6,28 @@ FC SIRIUS公式サイトの月別結果ページを読み取り、試合結果CS
 
 ## 実行手順
 
-1. Google Apps Scriptでプロジェクトを開き、\`Code.gs\`を反映します。
+1. Google Apps Scriptでプロジェクトを開き、`Code.gs`を反映します。
 2. 初回は外部URLへのアクセス権限を承認します。
-3. \`testFinalMatchParser\` を実行し、6ケースすべてが \`PASS\` になることを確認します。
-4. \`previewJune2026\` または \`previewCsvJune2026\` で公式ページの抽出結果を確認します。
-5. 全期間の確認では \`previewMonthlyPageBatch\` を使用し、\`SIRIUS_IMPORT_CONFIG.batchStartIndex\` を1、11、21…と進めます。監査専用の \`startMonthlyPageAudit\` は自動継続を使用します。
-6. CSVの列は \`team,date,category,score,result,siriusTeam,pkScore\` です。既存5列に \`siriusTeam\` と \`pkScore\` を追加しています。
+3. `testFinalMatchParser` を実行し、6ケースすべてが `PASS` になることを確認します。
+4. `previewJune2026` または `previewCsvJune2026` で公式ページの抽出結果を確認します。
+5. 全期間の確認では `previewMonthlyPageBatch` を使用し、`SIRIUS_IMPORT_CONFIG.batchStartIndex` を1、11、21…と進めます。監査専用の `startMonthlyPageAudit` は自動継続を使用します。
+6. CSVの列は `team,date,category,score,result,siriusTeam,pkScore` です。既存5列に `siriusTeam` と `pkScore` を追加しています。
 
 ## 結果・PK判定ルール
 
 - 通常スコアが勝敗を示す場合は、結果記号よりスコアを優先します（例：〇で1-2なら敗、△で2-0なら勝）。
-- 通常スコアが同点で、括弧内にPKスコアがある場合はPKスコアで勝敗を判定します。括弧内が \`(0-1)\` のようにPK表記を欠く場合もPKスコアとして扱います。
-- \`PK\` と誤記 \`POK\` の両方を認識します。
+- 通常スコアが同点で、括弧内にPKスコアがある場合はPKスコアで勝敗を判定します。括弧内が `(0-1)` のようにPK表記を欠く場合もPKスコアとして扱います。
+- `PK` と誤記 `POK` の両方を認識します。
 - 通常スコアが同点でPKスコアがない場合は、公式サイトの結果記号を維持します。公式記録を推測で上書きしません。
-- PK戦のみの記録（例：\`FC SIRIUS A (PK4-3) REPLO\`）は通常スコアを空欄、PKスコアを \`4-3\` として保持します。
+- PK戦のみの記録（例：`FC SIRIUS A (PK4-3) REPLO`）は通常スコアを空欄、PKスコアを `4-3` として保持します。
 
 ## A/B/Cなどのチーム内対戦
 
-CSV上の \`team\` と \`siriusTeam\` がどちらもFC SIRIUS内のチーム名の場合、観戦ガイド側でチーム内対戦として別管理します。逆向きに記録された同一試合は、日付・カテゴリ・チームペア・スコア（PKスコアを含む）を正規化して1試合に統合します。チーム内対戦は保存・表示しますが、対外試合の勝率や対戦チーム数には含めません。
+CSV上の `team` と `siriusTeam` がどちらもFC SIRIUS内のチーム名の場合、観戦ガイド側でチーム内対戦として別管理します。逆向きに記録された同一試合は、日付・カテゴリ・チームペア・スコア（PKスコアを含む）を正規化して1試合に統合します。チーム内対戦は保存・表示しますが、対外試合の勝率や対戦チーム数には含めません。
 
 ## 制約・確認事項
 
 - 候補件数の上限は設けていませんが、1候補=1試合を保証するものではありません。
 - 日付・カテゴリはページ周辺のテキストから仮抽出します。大会の表記やHTML構造によって欠落・重複が発生する可能性があります。
-- \`testFinalMatchParser\` は固定サンプルの回帰確認です。実サイトの全データの正しさを保証するものではありません。
+- `testFinalMatchParser` は固定サンプルの回帰確認です。実サイトの全データの正しさを保証するものではありません。
 - 実行ログと公式ページを照合し、全月の監査が完了してから本番シートへ反映してください。
