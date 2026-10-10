@@ -201,6 +201,17 @@ function startMonthlyPageAudit() {
   continueMonthlyPageAudit_();
 }
 
+/**
+ * 実行中の全ページ監査を停止し、保存済みの監査状態・URL一覧を破棄する。
+ * 公式サイトやスプレッドシートのデータは変更しない。
+ */
+function stopMonthlyPageAudit() {
+  deleteMonthlyPageAuditTriggers_();
+  PropertiesService.getScriptProperties().deleteProperty('SIRIUS_MONTHLY_AUDIT_STATE');
+  deleteMonthlyPageAuditInventory_();
+  console.log('月別ページ監査を停止しました。保存済みの監査状態・URL一覧を削除しました。シートのデータは変更していません。');
+}
+
 /** 時間トリガーから呼び出される自動継続処理。保存済みURL一覧を使うため、インデックスを再取得しない。 */
 function continueMonthlyPageAudit_() {
   const props = PropertiesService.getScriptProperties();
@@ -395,11 +406,15 @@ function fetchMonthlyPageInventory_() {
     pages.push({ year: year, month: month, url: url });
   }
 
-  pages.sort(function(a, b) { return a.year - b.year || a.month - b.month; });
-  if (pages.length === 0) {
+  // 対象範囲を2025年4月以降に限定する（2025年4月を含む）。
+  const targetPages = pages.filter(function(page) {
+    return page.year > 2025 || (page.year === 2025 && page.month >= 4);
+  });
+  targetPages.sort(function(a, b) { return a.year - b.year || a.month - b.month; });
+  if (targetPages.length === 0) {
     throw new Error('月別ページのリンクを抽出できませんでした。HTML構造を確認してください。');
   }
-  return pages;
+  return targetPages;
 }
 /**
  * 公式サイトの試合日程・結果一覧から、月別ページのURL台帳を作る（読み取り専用）。
