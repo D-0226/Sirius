@@ -250,6 +250,12 @@ function renderInitialMarkersInBatches(list, batchSize=24){
     const hasImportedMatches = points.some(p=>(p.matches||[]).length>0);
     if((!liveOk || !hasImportedMatches) && points.every(p=>(p.matches||[]).length===0)){
       SEED_MATCHES.forEach(([team,date,category,score,result])=>{
+        // 古いサンプルの「FC SIRIUS」戦績にはA/Bの区分がないため、
+        // 対外試合のサンプル戦績として誤集計しない。
+        if(isSiriusTeamName(team)){
+          console.warn('A/B等の区分が不明なSIRIUS内戦績サンプルを対外戦績から除外:', team, date, category, score);
+          return;
+        }
         const p=points.find(pp=>pp.name===team);
         if(p) addMatch(p.id,{date,category,score,result},{silent:true});
       });
