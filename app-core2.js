@@ -349,7 +349,7 @@ function updateGuide(){
     });
     const summary=Object.keys(stats).sort().map(name=>{
       const s=stats[name];
-      return `<div class="precord-row"><span>${escapeHtml(name)}</span><span>${s.win}勝 ${s.draw}分 ${s.lose}敗</span></div>`;
+      return `<div class="recent-item"><div class="ri-team">${escapeHtml(name)}</div><div class="ri-score">${s.win}勝 ${s.draw}分 ${s.lose}敗</div></div>`;
     }).join('');
     const rows=internal.slice(0,12).map(m=>{
       const scoreText=m.score ? (m.pkScore ? `${m.score} (PK ${m.pkScore})` : m.score) : (m.pkScore ? `PK ${m.pkScore}` : 'スコア未記録');
