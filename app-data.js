@@ -167,6 +167,17 @@ function importRows(rows){
       const resultRaw = String(r[iRes]==null?'':r[iRes]).trim();
       const result = RESULT_MAP[resultRaw] || resultRaw;
 
+      // 旧形式にSIRIUSチーム名が含まれる場合、対外チームとして登録しない。
+      // 両側がSIRIUS内チームなら内部対戦として保存し、片側の区分が不明なら保留する。
+      if(isSiriusTeamName(teamRaw)){
+        if(isSiriusTeamName(opp)){
+          upsertInternalMatch({team:opp,siriusTeam:teamRaw,date,category,score,pkScore:'',result});
+        } else {
+          console.warn('旧形式のSIRIUSチーム記録はチーム区分を確認できないため、対外戦績から除外:', teamRaw, date, category);
+        }
+        continue;
+      }
+
       if(iPlace>=0){
         const place = String(r[iPlace]==null?'':r[iPlace]).trim();
         if(place){
@@ -229,6 +240,10 @@ function importRows(rows){
       if(isInternal){
         const inserted=upsertInternalMatch({team:teamRaw,siriusTeam:siriusTeam,date,category,score,pkScore,result});
         if(inserted) internalAdded++; else internalDup++;
+        continue;
+      }
+      if(isSiriusTeamName(teamRaw)){
+        console.warn('SIRIUSチーム名ですが相手側チーム区分が不明なため、対外戦績から除外:', teamRaw, date, category);
         continue;
       }
       const p = findTeamPoint(teamRaw);
