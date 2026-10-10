@@ -332,6 +332,36 @@ function updateGuide(){
     (anchor||document.querySelector('.guide-search')).before(sec);
     sec.querySelectorAll('.recent-item').forEach(el=>el.addEventListener('click',()=>{ const id=Number(el.dataset.pointId); if(markers[id]){ selectPoint(id); map.flyTo(markers[id].getLatLng(),15); markers[id].openPopup(); } }));
   }
+  // SIRIUS内のA/B/C等の対戦は別枠で蓄積し、対外戦績の勝率・チーム数には混ぜない。
+  const internal = (internalMatches||[]).filter(m=>(m.category||'').trim()===currentGrade)
+    .slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const oldInternal=document.getElementById('internalMatchSection');
+  if(oldInternal) oldInternal.remove();
+  if(internal.length){
+    const stats={};
+    internal.forEach(m=>{
+      [[m.teamA,m.result],[m.teamB,flipResult(m.result)]].forEach(([name,result])=>{
+        if(!stats[name]) stats[name]={win:0,draw:0,lose:0};
+        if(result==='勝') stats[name].win++;
+        else if(result==='分') stats[name].draw++;
+        else if(result==='敗') stats[name].lose++;
+      });
+    });
+    const summary=Object.keys(stats).sort().map(name=>{
+      const s=stats[name];
+      return `<div class="precord-row"><span>${escapeHtml(name)}</span><span>${s.win}勝 ${s.draw}分 ${s.lose}敗</span></div>`;
+    }).join('');
+    const rows=internal.slice(0,12).map(m=>{
+      const scoreText=m.score ? (m.pkScore ? `${m.score} (PK ${m.pkScore})` : m.score) : (m.pkScore ? `PK ${m.pkScore}` : 'スコア未記録');
+      const cls=m.result==='勝'?'result-win':m.result==='分'?'result-draw':'result-lose';
+      return `<div class="recent-item"><div class="ri-top">${escapeHtml(formatGuideDate(m.date))} · ${escapeHtml(m.category||'')}</div><div class="ri-team">${escapeHtml(m.teamA)} vs ${escapeHtml(m.teamB)}</div><div class="ri-score ${cls}">${escapeHtml(scoreText)} · ${escapeHtml(m.result||'')}（${escapeHtml(m.teamA)}視点）</div></div>`;
+    }).join('');
+    const sec=document.createElement('div');
+    sec.id='internalMatchSection'; sec.className='guide-section';
+    sec.innerHTML=`<div class="guide-section-title">チーム内対戦（${internal.length}試合・対外戦績の集計対象外）</div><div class="recent-list">${summary}</div><div class="guide-section-title" style="margin-top:8px;">最近のチーム内対戦</div><div class="recent-list">${rows}</div>${internal.length>12?'<div class="ri-top">新しい順に12試合を表示</div>':''}<div class="ri-top" style="margin-top:6px;">A/B/C等のチーム内対戦は保存していますが、対外試合の勝率・チーム数には含めていません。</div>`;
+    const anchor=document.querySelector('.guide-search');
+    if(anchor) anchor.before(sec);
+  }
 }
 
 /* ---------------- grade select (学年別表示) ---------------- */
