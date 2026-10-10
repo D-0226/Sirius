@@ -270,6 +270,10 @@ function ensureSiriusBatchSheet_(ss, name, headers) {
         current[targetCol - 1] = header;
       }
     });
+    const managedPrefix = current.slice(0, headers.length);
+    if (headers.some(function(header, i) { return managedPrefix[i] !== header; })) {
+      throw new Error('タブ「' + name + '」の列順が想定と異なります。データの誤書込を防ぐため停止しました。期待列=' + headers.join(',') + ' / 現在=' + managedPrefix.join(','));
+    }
     sheet.setFrozenRows(1);
   }
   return sheet;
