@@ -25,19 +25,19 @@ let currentGrade = loadSavedGrade();
 let showOtherGrades = false;
 
 function matchesForGrade(matches){
-  return (matches||[]).filter(m => (m.category||'').trim() === currentGrade);
+  return (matches||[]).filter(m => m.matchType !== 'internal' && (m.category||'').trim() === currentGrade);
 }
 function matchesForOtherGrades(matches){
   return (matches||[]).filter(m => {
     const c = (m.category||'').trim();
-    return c && c !== currentGrade && GRADE_OPTIONS.includes(c);
+    return m.matchType !== 'internal' && c && c !== currentGrade && GRADE_OPTIONS.includes(c);
   });
 }
 function hasAnyMatch(matches){
-  return (matches||[]).some(m => GRADE_OPTIONS.includes((m.category||'').trim()));
+  return (matches||[]).some(m => m.matchType !== 'internal' && GRADE_OPTIONS.includes((m.category||'').trim()));
 }
 function gradeSummary(matches, grade){
-  const filtered=(matches||[]).filter(m=>(m.category||'').trim()===grade);
+  const filtered=(matches||[]).filter(m=>m.matchType !== 'internal' && (m.category||'').trim()===grade);
   const s={win:0,draw:0,lose:0,total:filtered.length};
   filtered.forEach(m=>{if(m.result==='勝')s.win++;else if(m.result==='分')s.draw++;else if(m.result==='敗')s.lose++;});
   return s;
