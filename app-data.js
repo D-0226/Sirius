@@ -90,17 +90,17 @@ function matchKey(teamId, m){
 }
 
 function isSiriusTeamName(name){
-  const n=String(name||'').replace(/[\\s\\u3000]+/g,'').toUpperCase();
+  const n=String(name||'').replace(/[\s\u3000]+/g,'').toUpperCase();
   return n.indexOf('FCSIRIUS')===0 || n.indexOf('FCシリウス')===0;
 }
 function normalizeInternalTeamName(name){
-  return String(name||'').replace(/[\\s\\u3000]+/g,'').toUpperCase();
+  return String(name||'').replace(/[\s\u3000]+/g,'').toUpperCase();
 }
 function flipResult(result){
   return result==='勝'?'敗':result==='敗'?'勝':result;
 }
 function invertScore(score){
-  const m=String(score||'').match(/^(\\d+)\\s*[-－―−:]\\s*(\\d+)$/);
+  const m=String(score||'').match(/^(\d+)\s*[-－―−:]\s*(\d+)$/);
   return m ? m[2]+'-'+m[1] : String(score||'');
 }
 function upsertInternalMatch(row){
@@ -111,8 +111,8 @@ function upsertInternalMatch(row){
   const score=sideFirst?row.score:invertScore(row.score);
   const pkScore=sideFirst?row.pkScore:invertScore(row.pkScore);
   let result=sideFirst?row.result:flipResult(row.result);
-  const scoreParts=String(score||'').match(/^(\\d+)-(\\d+)$/);
-  const pkParts=String(pkScore||'').match(/^(\\d+)-(\\d+)$/);
+  const scoreParts=String(score||'').match(/^(\d+)-(\d+)$/);
+  const pkParts=String(pkScore||'').match(/^(\d+)-(\d+)$/);
   if(scoreParts && Number(scoreParts[1])!==Number(scoreParts[2])) result=Number(scoreParts[1])>Number(scoreParts[2])?'勝':'敗';
   else if(pkParts && Number(pkParts[1])!==Number(pkParts[2])) result=Number(pkParts[1])>Number(pkParts[2])?'勝':'敗';
   const item={date:row.date||'',category:row.category||'',teamA,teamB,score,pkScore,result,matchType:'internal',source:'official'};
