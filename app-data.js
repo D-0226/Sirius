@@ -54,7 +54,7 @@ async function loadMatchesFromSheet({silent=false} = {}){
 
 /* ---------------- FC SIRIUS upcoming fixtures (Google Apps Script JSONP) ---------------- */
 // Code.gsをウェブアプリとしてデプロイし、ここに /exec URLを設定してください。
-const SIRIUS_UPCOMING_API_URL = 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_EXEC_URL_HERE';
+const SIRIUS_UPCOMING_API_URL = 'https://script.google.com/macros/s/AKfycbwo1C-XsWwk8l1JRMe0yyWR9jQzVyCoURTiEjzKKCuLM9O775H9vWouCRKoZQNINnfWhA/exec';
 let siriusUpcomingMatches = [];
 
 function loadSiriusUpcomingMatches(){
