@@ -50,6 +50,94 @@ async function loadMatchesFromSheet({silent=false} = {}){
   return ok;
 }
 
+
+
+/* ---------------- FC SIRIUS upcoming fixtures (Google Apps Script JSONP) ---------------- */
+// Code.gsをウェブアプリとしてデプロイし、ここに /exec URLを設定してください。
+const SIRIUS_UPCOMING_API_URL = 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_EXEC_URL_HERE';
+let siriusUpcomingMatches = [];
+
+function loadSiriusUpcomingMatches(){
+  if(!SIRIUS_UPCOMING_API_URL || SIRIUS_UPCOMING_API_URL.indexOf('/exec') < 0 || SIRIUS_UPCOMING_API_URL.startsWith('PASTE_')){
+    console.warn('SIRIUS予定取得: SIRIUS_UPCOMING_API_URL が未設定です');
+    renderSiriusUpcomingPanel({ok:false,error:'予定取得APIが未設定です'});
+    return Promise.resolve(false);
+  }
+  return new Promise(resolve=>{
+    const callbackName = '__siriusUpcomingCallback_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+    const script = document.createElement('script');
+    let finished = false;
+    const cleanup = ()=>{
+      if(script.parentNode) script.parentNode.removeChild(script);
+      try{ delete window[callbackName]; }catch(_){ window[callbackName] = undefined; }
+    };
+    const timer = setTimeout(()=>{
+      if(finished) return;
+      finished = true; cleanup();
+      renderSiriusUpcomingPanel({ok:false,error:'公式サイトの予定取得がタイムアウトしました'});
+      resolve(false);
+    },15000);
+    window[callbackName] = payload=>{
+      if(finished) return;
+      finished = true; clearTimeout(timer); cleanup();
+      if(payload && payload.ok && Array.isArray(payload.matches)){
+        siriusUpcomingMatches = payload.matches;
+        renderSiriusUpcomingPanel(payload);
+        resolve(true);
+      }else{
+        renderSiriusUpcomingPanel({ok:false,error:(payload&&payload.error)||'予定を取得できませんでした'});
+        resolve(false);
+      }
+    };
+    script.onerror = ()=>{
+      if(finished) return;
+      finished = true; clearTimeout(timer); cleanup();
+      renderSiriusUpcomingPanel({ok:false,error:'予定取得APIに接続できませんでした'});
+      resolve(false);
+    };
+    script.src = SIRIUS_UPCOMING_API_URL + (SIRIUS_UPCOMING_API_URL.includes('?')?'&':'?') +
+      'callback=' + encodeURIComponent(callbackName) + '&_=' + Date.now();
+    document.head.appendChild(script);
+  });
+}
+
+function renderSiriusUpcomingPanel(payload){
+  let panel = document.getElementById('siriusUpcomingPanel');
+  if(!panel){
+    panel = document.createElement('section');
+    panel.id = 'siriusUpcomingPanel';
+    panel.setAttribute('aria-label','FC SIRIUS今後の試合予定');
+    panel.style.cssText = 'position:fixed;z-index:1200;right:12px;bottom:12px;width:min(360px,calc(100vw - 24px));max-height:min(52vh,440px);overflow:hidden;background:#fff;color:#1f2937;border:1px solid #cbd5e1;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.2);font:14px/1.45 system-ui,-apple-system,sans-serif;';
+    document.body.appendChild(panel);
+  }
+  const matches = payload && payload.ok && Array.isArray(payload.matches) ? payload.matches : [];
+  const header = `<button type="button" id="siriusUpcomingToggle" aria-expanded="true" style="display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:#123b65;color:white;padding:10px 12px;font-weight:700;text-align:left;cursor:pointer"><span>⚽ FC SIRIUS 今後の試合予定 (${matches.length})</span><span id="siriusUpcomingArrow">▾</span></button>`;
+  let body = '';
+  if(!payload || !payload.ok){
+    body = `<div style="padding:12px;color:#9a3412">${escapeHtml(payload&&payload.error ? payload.error : '予定を取得できませんでした')}<div style="font-size:12px;margin-top:6px">設定と公式サイトの公開状態を確認してください。</div></div>`;
+  }else if(matches.length===0){
+    body = '<div style="padding:12px;color:#64748b">現在、取得できる今後の試合予定はありません。</div>';
+  }else{
+    body = `<div id="siriusUpcomingBody" style="overflow:auto;max-height:calc(min(52vh,440px) - 42px);padding:6px 10px">${matches.slice(0,30).map(m=>`
+      <article style="padding:8px 2px;border-bottom:1px solid #e2e8f0">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><strong>${escapeHtml(m.date||'日付未定')}</strong>${m.time?`<span>${escapeHtml(m.time)}</span>`:''}${m.category?`<span style="font-size:11px;background:#e0f2fe;padding:2px 6px;border-radius:10px">${escapeHtml(m.category)}</span>`:''}</div>
+        <div style="margin-top:3px">${escapeHtml(m.title||'試合予定')}</div>
+        ${m.venue?`<div style="font-size:12px;color:#64748b;margin-top:3px">会場：${escapeHtml(m.venue)}</div>`:''}
+        ${m.sourceUrl?`<div style="margin-top:4px;font-size:12px"><a href="${escapeHtml(m.sourceUrl)}" target="_blank" rel="noopener noreferrer">公式ページ</a></div>`:''}
+      </article>`).join('')}</div>`;
+  }
+  panel.innerHTML = header + `<div id="siriusUpcomingContent">${body}</div>`;
+  const toggle = panel.querySelector('#siriusUpcomingToggle');
+  toggle.addEventListener('click',()=>{
+    const content = panel.querySelector('#siriusUpcomingContent');
+    const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded',String(!isOpen));
+    content.style.display = isOpen ? 'none' : 'block';
+    const arrow = panel.querySelector('#siriusUpcomingArrow');
+    if(arrow) arrow.textContent = isOpen ? '▸' : '▾';
+  });
+}
+
 /* ---------------- smart file import (Excel/CSV, points or matches) ---------------- */
 const RESULT_MAP = { Win:'勝', Lose:'敗', Draw:'分', 勝:'勝', 敗:'敗', 分:'分' };
 
@@ -473,4 +561,3 @@ function downloadFile(filename, content, mime){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
