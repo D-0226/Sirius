@@ -208,6 +208,9 @@ function renderInitialMarkersInBatches(list, batchSize=24){
 
 /* ---------------- init ---------------- */
 (async function init(){
+  // 試合予定は既存の戦績・地図処理とは独立して取得する。
+  try{ loadSiriusUpcomingMatches(); }catch(e){ console.error('SIRIUS upcoming schedule load failed',e); }
+
   // まずチームを即時表示。外部CSV/グラウンド取得でエラーが起きても、
   // 地図本体が「0地点」のまま止まらないようにする。
   try{ await loadPersisted(); }catch(e){ console.error('persist load failed',e); }
