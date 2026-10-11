@@ -124,7 +124,8 @@
   .result-win{color:#16803c}.result-draw{color:#9a6b00}.result-lose{color:#c43b2f}
   .guide-search{padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);}
   .guide-search #mapSearchInput{padding:10px 12px;border-radius:9px;font-size:13px;}
-  .map-quick-help{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:10px;color:var(--ink-soft);z-index:500;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+  /* 凡例は右上の「凡例」ボタンから表示するため、地図上の常設凡例は全方向で非表示 */
+  .map-quick-help{display:none;}
   .popup-actions{display:flex;gap:6px;margin-top:8px;}
   .popup-action{display:inline-block;text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:11px;color:var(--ink);background:#fff;}
   .popup-action.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
