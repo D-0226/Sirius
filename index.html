@@ -175,6 +175,11 @@
     .mobile-search-close{position:absolute;right:12px;top:12px;border:0;background:transparent;font-size:16px;color:var(--ink-soft);}
   }
 
+  /* スマホ横向きでは画面幅が600pxを超えても検索欄を隠し、地図領域を確保 */
+  @media (orientation: landscape) and (max-height: 600px){
+    .guide-search{display:none;}
+  }
+
   .legend-search{
     position:relative;
     padding:10px 20px 0;
