@@ -364,6 +364,56 @@ function updateGuide(){
   }
 }
 
+/* ---------------- match information collapsible (mobile landscape) ---------------- */
+(function initMatchInfoCollapse(){
+  const guideStrip = document.getElementById('guideStrip');
+  if(!guideStrip || document.getElementById('matchInfoToggle')) return;
+
+  const style = document.createElement('style');
+  style.id = 'matchInfoCollapseStyle';
+  style.textContent = `
+    #matchInfoToggle{
+      display:flex;align-items:center;justify-content:space-between;gap:8px;
+      width:100%;box-sizing:border-box;padding:7px 12px;
+      border:0;border-bottom:1px solid var(--line);background:var(--paper);
+      color:var(--ink);font:600 12px var(--sans);text-align:left;cursor:pointer;
+    }
+    #matchInfoToggle .match-info-chevron{font-size:11px;flex-shrink:0;}
+    body.match-info-collapsed #guideStrip,
+    body.match-info-collapsed .guide-section{display:none!important;}
+    @media (orientation:landscape) and (max-height:600px){
+      #matchInfoToggle{padding:5px 10px;font-size:11px;}
+      .guide-strip{padding-top:4px;padding-bottom:4px;}
+    }
+  `;
+  document.head.appendChild(style);
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'matchInfoToggle';
+  button.setAttribute('aria-expanded','true');
+  button.innerHTML = '<span>⚽ 対戦情報をたたむ</span><span class="match-info-chevron">▲</span>';
+  guideStrip.parentNode.insertBefore(button, guideStrip);
+
+  const media = window.matchMedia('(orientation: landscape) and (max-height: 600px)');
+  const setCollapsed = collapsed => {
+    document.body.classList.toggle('match-info-collapsed', collapsed);
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.innerHTML = collapsed
+      ? '<span>⚽ 対戦情報を表示</span><span class="match-info-chevron">▼</span>'
+      : '<span>⚽ 対戦情報をたたむ</span><span class="match-info-chevron">▲</span>';
+  };
+  setCollapsed(media.matches);
+  button.addEventListener('click', () => {
+    setCollapsed(!document.body.classList.contains('match-info-collapsed'));
+  });
+  if(media.addEventListener){
+    media.addEventListener('change', event => setCollapsed(event.matches));
+  }else if(media.addListener){
+    media.addListener(event => setCollapsed(event.matches));
+  }
+})();
+
 /* ---------------- grade select (学年別表示) ---------------- */
 const gradeSelectEl = document.getElementById('gradeSelect');
 gradeSelectEl.innerHTML = GRADE_OPTIONS.map(g=>`<option value="${g}">${GRADE_LABELS[g]}</option>`).join('');
