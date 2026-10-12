@@ -111,40 +111,39 @@ function normalizeUpcomingGrade(value){
   const match = text.match(/U-?(\d{1,2})/);
   if(match) return 'U-' + Number(match[1]);
 
-  // 学年表記の揺れをU表記へ統一（1年生＝U-7、6年生＝U-12）。
+  // 日本語の学年表記もU学年へ統一（1年生＝U-7、6年生＝U-12）。
   const yearMatch = text.match(/([1-6一二三四五六])年生?/);
   if(yearMatch){
     const yearMap = {'1':7,'2':8,'3':9,'4':10,'5':11,'6':12,'一':7,'二':8,'三':9,'四':10,'五':11,'六':12};
     return 'U-' + yearMap[yearMatch[1]];
   }
-  if(/園児|年長|幼児/.test(text)) return 'U-6';
+  if(/園児|年少|年中|年長|幼児/.test(text)) return 'U-6';
   return text;
 }
 
-// 複数学年表記と日本語の学年表記を抽出し、同じU学年に統一する。
+// 複数学年表記・全角数字・日本語学年表記をまとめて抽出する。
 function normalizeUpcomingGrades(value){
   const text = String(value || '').toUpperCase()
     .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
     .replace(/[\s\u3000]/g,'')
     .replace(/[‐‑‒–—−]/g,'-');
-  // 古いブラウザでも動作するよう、String.matchAll() は使用しない。
   const grades = (text.match(/U-?\d{1,2}/g) || []).map(match => normalizeUpcomingGrade(match));
 
-  // 「U-6.7」のように2つ目のUが省略された表記も、U-6とU-7の両方として扱う。
-  const shorthandPattern = /U-?(\d{1,2})[.・/、,＋+&](\d{1,2})(?!\d)/g;
+  // U-6.7 / U6・7 / U-6/U-7 などの複数学年表記を吸収する。
+  const shorthandPattern = /U-?(\d{1,2})[.・\/、,＋+&](\d{1,2})(?!\d)/g;
   let shorthand;
   while((shorthand = shorthandPattern.exec(text)) !== null){
     grades.push('U-' + Number(shorthand[1]), 'U-' + Number(shorthand[2]));
   }
 
-  // 「1年生TM」「１年生TM」「一年生TM」なども対象にする。
+  // 1年生、１年生、一年生などの表記をU学年へ変換する。
   const yearPattern = /([1-6一二三四五六])年生?/g;
   let year;
   const yearMap = {'1':7,'2':8,'3':9,'4':10,'5':11,'6':12,'一':7,'二':8,'三':9,'四':10,'五':11,'六':12};
   while((year = yearPattern.exec(text)) !== null){
     grades.push('U-' + yearMap[year[1]]);
   }
-  if(/園児|年長|幼児/.test(text)) grades.push('U-6');
+  if(/園児|年少|年中|年長|幼児/.test(text)) grades.push('U-6');
 
   return grades.length ? [...new Set(grades)] : [normalizeUpcomingGrade(value)];
 }
