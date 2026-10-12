@@ -109,12 +109,20 @@ function normalizeUpcomingGrade(value){
   return match ? 'U-' + Number(match[1]) : text;
 }
 
-// 複数学年がまとめて記載されたカテゴリ（例: U-6.U7TM）は、該当する全学年を抽出する。
+// 複数学年表記（例: U-6.U7TM、U-6.7TM）は、該当する全学年を抽出する。
 function normalizeUpcomingGrades(value){
-  const text = String(value || '').toUpperCase().replace(/[\s\u3000]/g,'').replace(/[‐‑‒–—−]/g,'-');
+  const text = String(value || '').toUpperCase().replace(/[\\s\\u3000]/g,'').replace(/[‐‑‒–—−]/g,'-');
   // 古いブラウザでも動作するよう、String.matchAll() は使用しない。
-  const matches = text.match(/U-?\d{1,2}/g) || [];
-  return matches.length ? [...new Set(matches.map(match => normalizeUpcomingGrade(match)))] : [normalizeUpcomingGrade(value)];
+  const grades = (text.match(/U-?\\d{1,2}/g) || []).map(match => normalizeUpcomingGrade(match));
+
+  // 「U-6.7」のように2つ目のUが省略された表記も、U-6とU-7の両方として扱う。
+  const shorthandPattern = /U-?(\\d{1,2})[.・/、,＋+&](\\d{1,2})(?!\\d)/g;
+  let shorthand;
+  while((shorthand = shorthandPattern.exec(text)) !== null){
+    grades.push('U-' + Number(shorthand[1]), 'U-' + Number(shorthand[2]));
+  }
+
+  return grades.length ? [...new Set(grades)] : [normalizeUpcomingGrade(value)];
 }
 function parseUpcomingDate(value){
   const text = String(value || '').trim();
