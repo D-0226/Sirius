@@ -112,8 +112,9 @@ function normalizeUpcomingGrade(value){
 // 複数学年がまとめて記載されたカテゴリ（例: U-6.U7TM）は、該当する全学年を抽出する。
 function normalizeUpcomingGrades(value){
   const text = String(value || '').toUpperCase().replace(/[\s\u3000]/g,'').replace(/[‐‑‒–—−]/g,'-');
-  const matches = [...text.matchAll(/U-?(\d{1,2})/g)];
-  return matches.length ? [...new Set(matches.map(match => 'U-' + Number(match[1])))] : [normalizeUpcomingGrade(value)];
+  // 古いブラウザでも動作するよう、String.matchAll() は使用しない。
+  const matches = text.match(/U-?\d{1,2}/g) || [];
+  return matches.length ? [...new Set(matches.map(match => normalizeUpcomingGrade(match)))] : [normalizeUpcomingGrade(value)];
 }
 function parseUpcomingDate(value){
   const text = String(value || '').trim();
