@@ -105,9 +105,12 @@ let siriusUpcomingPayload = null;
 
 function normalizeUpcomingGrade(value){
   const text = String(value || '').toUpperCase()
+    .replace(/[Ｕｕ]/g,'U')
     .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
     .replace(/[\s\u3000]/g,'')
-    .replace(/[‐‑‒–—−]/g,'-');
+    .replace(/[‐‑‒–—―−﹣－]/g,'-')
+    .replace(/／/g,'/')
+    .replace(/．/g,'.');
   const match = text.match(/U-?(\d{1,2})/);
   if(match) return 'U-' + Number(match[1]);
 
@@ -124,9 +127,12 @@ function normalizeUpcomingGrade(value){
 // 複数学年表記・全角数字・日本語学年表記をまとめて抽出する。
 function normalizeUpcomingGrades(value){
   const text = String(value || '').toUpperCase()
+    .replace(/[Ｕｕ]/g,'U')
     .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
     .replace(/[\s\u3000]/g,'')
-    .replace(/[‐‑‒–—−]/g,'-');
+    .replace(/[‐‑‒–—―−﹣－]/g,'-')
+    .replace(/／/g,'/')
+    .replace(/．/g,'.');
   const grades = (text.match(/U-?\d{1,2}/g) || []).map(match => normalizeUpcomingGrade(match));
 
   // U-6.7 / U6・7 / U-6/U-7 などの複数学年表記を吸収する。
