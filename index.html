@@ -714,14 +714,14 @@
     .header-toggle{ font-size:10px; padding:3px 6px; }
   }
 
-  /* スマホ縦向き：直近の予定ウインドウと検索ボタンの重なりを防止 */
+  /* スマホ縦向き：操作バーは上部に移動したため、直近予定を画面下部へ寄せる */
   @media (max-width:600px) and (orientation: portrait){
     #siriusUpcomingPanel{
-      bottom:58px !important;
-      max-height:calc(68vh - 48px) !important;
+      bottom:12px !important;
+      max-height:min(68vh,600px) !important;
     }
     #siriusUpcomingPanel #siriusUpcomingBody{
-      max-height:calc(58vh - 48px) !important;
+      max-height:58vh !important;
     }
   }
 
@@ -750,9 +750,14 @@
     .map-toolbar .map-ctrl-btn .ico{width:auto;font-size:11px;}
     .map-toolbar .map-ctrl-btn .lbl{overflow:hidden;text-overflow:ellipsis;}
     .mobile-search-panel{
-      top:50px;bottom:auto;left:6px;right:6px;z-index:1400;
+      position:absolute;display:none;top:50px;bottom:auto;left:6px;right:6px;z-index:1400;
       max-height:calc(100% - 58px);overflow:visible;
+      background:rgba(255,255,255,.98);border:1px solid var(--line);border-radius:9px;
+      padding:7px;box-shadow:0 4px 14px rgba(0,0,0,.2);
     }
+    .mobile-search-panel.open{display:block;}
+    .mobile-search-panel #mapSearchInputMobile{width:100%;box-sizing:border-box;padding:9px 34px 9px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;}
+    .mobile-search-panel .search-results{position:static;width:100%;max-height:45vh;margin-top:5px;}
     .mobile-search-panel .search-results{max-height:45vh;}
     .ground-mode-hint{top:52px;}
     .map-quick-help{display:none;}
