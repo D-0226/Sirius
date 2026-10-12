@@ -713,6 +713,18 @@
     #gradeSelect{ font-size:10.5px; padding:3px 4px; max-width:64px; }
     .header-toggle{ font-size:10px; padding:3px 6px; }
   }
+
+  /* スマホ縦向き：直近の予定ウインドウと検索ボタンの重なりを防止 */
+  @media (max-width:600px) and (orientation: portrait){
+    #siriusUpcomingPanel{
+      bottom:58px !important;
+      max-height:calc(68vh - 48px) !important;
+    }
+    #siriusUpcomingPanel #siriusUpcomingBody{
+      max-height:calc(58vh - 48px) !important;
+    }
+  }
+
 </style>
 </head>
 <body>
