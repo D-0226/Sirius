@@ -101,32 +101,129 @@ function loadSiriusUpcomingMatches(){
   });
 }
 
+let siriusUpcomingPayload = null;
+
+function normalizeUpcomingGrade(value){
+  const text = String(value || '').toUpperCase().replace(/[\s\u3000]/g,'').replace(/[‐‑‒–—−]/g,'-');
+  const match = text.match(/U-?(\d{1,2})/);
+  return match ? 'U-' + Number(match[1]) : text;
+}
+
+function parseUpcomingDate(value){
+  const text = String(value || '').trim();
+  let match = text.match(/(\d{4})[\/年.-]\s*(\d{1,2})[\/月.-]\s*(\d{1,2})/);
+  if(!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2])-1, Number(match[3]));
+  if(date.getFullYear() !== Number(match[1]) || date.getMonth() !== Number(match[2])-1 || date.getDate() !== Number(match[3])) return null;
+  date.setHours(0,0,0,0);
+  return date;
+}
+
+function upcomingDateLabel(value){
+  const date = parseUpcomingDate(value);
+  if(!date) return {key:'unknown',main:value || '日付未定',sub:''};
+  const now = new Date();
+  now.setHours(0,0,0,0);
+  const days = Math.round((date.getTime()-now.getTime())/86400000);
+  const weekday = ['日','月','火','水','木','金','土'][date.getDay()];
+  let relative = '';
+  if(days === 0) relative = '今日';
+  else if(days === 1) relative = '明日';
+  else if(days > 1) relative = 'あと' + days + '日';
+  else relative = Math.abs(days) + '日前';
+  return {
+    key: date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0'),
+    main: (date.getMonth()+1) + '/' + date.getDate() + '（' + weekday + '）',
+    sub: relative,
+    days: days
+  };
+}
+
+function focusUpcomingVenue(venue){
+  const normalize = value => String(value || '').replace(/[\s\u3000]/g,'').replace(/[（）]/g, c => c === '（' ? '(' : ')').toLowerCase();
+  const target = normalize(venue);
+  const ground = typeof grounds !== 'undefined' ? Object.values(grounds).find(g => {
+    const name = normalize(g.name);
+    return name && (name === target || name.includes(target) || target.includes(name));
+  }) : null;
+  const marker = ground && typeof groundMarkers !== 'undefined' ? groundMarkers[ground.name] : null;
+  if(ground && marker && typeof map !== 'undefined'){
+    map.flyTo([ground.lat,ground.lng],Math.max(map.getZoom(),15));
+    marker.openPopup();
+  }else{
+    window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(venue),'_blank','noopener');
+  }
+}
+
 function renderSiriusUpcomingPanel(payload){
+  siriusUpcomingPayload = payload || null;
   let panel = document.getElementById('siriusUpcomingPanel');
   if(!panel){
     panel = document.createElement('section');
     panel.id = 'siriusUpcomingPanel';
     panel.setAttribute('aria-label','FC SIRIUS今後の試合予定');
-    panel.style.cssText = 'position:fixed;z-index:1200;right:12px;bottom:12px;width:min(360px,calc(100vw - 24px));max-height:min(52vh,440px);overflow:hidden;background:#fff;color:#1f2937;border:1px solid #cbd5e1;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.2);font:14px/1.45 system-ui,-apple-system,sans-serif;';
+    panel.style.cssText = 'position:fixed;z-index:1200;right:10px;bottom:10px;width:min(420px,calc(100vw - 20px));max-height:min(68vh,600px);overflow:hidden;background:#fff;color:#1f2937;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.22);font:14px/1.45 system-ui,-apple-system,sans-serif;';
     document.body.appendChild(panel);
   }
-  const matches = payload && payload.ok && Array.isArray(payload.matches) ? payload.matches : [];
-  const header = `<button type="button" id="siriusUpcomingToggle" aria-expanded="true" style="display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:#123b65;color:white;padding:10px 12px;font-weight:700;text-align:left;cursor:pointer"><span>⚽ FC SIRIUS 今後の試合予定 (${matches.length})</span><span id="siriusUpcomingArrow">▾</span></button>`;
+
+  const allMatches = payload && payload.ok && Array.isArray(payload.matches) ? payload.matches : [];
+  const selectedGrade = typeof currentGrade !== 'undefined' ? currentGrade : '';
+  const gradeMatches = allMatches.filter(m => normalizeUpcomingGrade(m.category) === normalizeUpcomingGrade(selectedGrade));
+  const sortedMatches = gradeMatches.slice().sort((a,b) => {
+    const da = parseUpcomingDate(a.date), db = parseUpcomingDate(b.date);
+    if(da && db) return da - db || String(a.time||'').localeCompare(String(b.time||''));
+    if(da) return -1;
+    if(db) return 1;
+    return String(a.date||'').localeCompare(String(b.date||''));
+  });
+  const visibleMatches = sortedMatches.slice(0,30);
+  const header = '<button type="button" id="siriusUpcomingToggle" aria-expanded="true" style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:0;background:#123b65;color:white;padding:11px 13px;font-weight:700;text-align:left;cursor:pointer"><span style="min-width:0">⚽ 直近の試合予定 <span style="font-size:12px;font-weight:500;opacity:.9">' + escapeHtml(selectedGrade ? (GRADE_LABELS[selectedGrade] || selectedGrade) : '') + '</span><span style="display:block;font-size:11px;font-weight:500;opacity:.85;margin-top:2px">' + visibleMatches.length + '件表示' + (gradeMatches.length > visibleMatches.length ? '（全' + gradeMatches.length + '件）' : '') + '</span></span><span id="siriusUpcomingArrow" aria-hidden="true">▾</span></button>';
+
   let body = '';
   if(!payload || !payload.ok){
-    body = `<div style="padding:12px;color:#9a3412">${escapeHtml(payload&&payload.error ? payload.error : '予定を取得できませんでした')}<div style="font-size:12px;margin-top:6px">設定と公式サイトの公開状態を確認してください。</div></div>`;
-  }else if(matches.length===0){
-    body = '<div style="padding:12px;color:#64748b">現在、取得できる今後の試合予定はありません。</div>';
+    body = '<div style="padding:14px;color:#9a3412">' + escapeHtml(payload && payload.error ? payload.error : '予定を取得できませんでした') + '<div style="font-size:12px;margin-top:6px">設定と公式サイトの公開状態を確認してください。</div></div>';
+  }else if(allMatches.length === 0){
+    body = '<div style="padding:14px;color:#64748b">現在、取得できる今後の試合予定はありません。</div>';
+  }else if(gradeMatches.length === 0){
+    body = '<div style="padding:14px;color:#64748b"><strong>' + escapeHtml(GRADE_LABELS[selectedGrade] || selectedGrade) + 'の予定は見つかりませんでした。</strong><div style="margin-top:5px;font-size:12px">上部の学年フィルタを切り替えると、予定も連動して切り替わります。</div></div>';
   }else{
-    body = `<div id="siriusUpcomingBody" style="overflow:auto;max-height:calc(min(52vh,440px) - 42px);padding:6px 10px">${matches.slice(0,30).map(m=>`
-      <article style="padding:8px 2px;border-bottom:1px solid #e2e8f0">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><strong>${escapeHtml(m.date||'日付未定')}</strong>${m.time?`<span>${escapeHtml(m.time)}</span>`:''}${m.category?`<span style="font-size:11px;background:#e0f2fe;padding:2px 6px;border-radius:10px">${escapeHtml(m.category)}</span>`:''}</div>
-        <div style="margin-top:3px">${escapeHtml(m.title||'試合予定')}</div>
-        ${m.venue?`<div style="font-size:12px;color:#64748b;margin-top:3px">会場：${escapeHtml(m.venue)}</div>`:''}
-        ${m.sourceUrl?`<div style="margin-top:4px;font-size:12px"><a href="${escapeHtml(m.sourceUrl)}" target="_blank" rel="noopener noreferrer">公式ページ</a></div>`:''}
-      </article>`).join('')}</div>`;
+    const groups = [];
+    const groupMap = {};
+    visibleMatches.forEach(m => {
+      const info = upcomingDateLabel(m.date);
+      const key = info.key;
+      if(!groupMap[key]){
+        groupMap[key] = {info:info,matches:[]};
+        groups.push(groupMap[key]);
+      }
+      groupMap[key].matches.push(m);
+    });
+    body = '<div id="siriusUpcomingBody" style="overflow:auto;max-height:min(58vh,520px);padding:8px 10px 10px;-webkit-overflow-scrolling:touch">';
+    body += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 2px 7px;color:#64748b;font-size:11px"><span>日付ごとに表示・学年フィルタ連動</span><span>' + gradeMatches.length + '試合</span></div>';
+    groups.forEach(group => {
+      body += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:9px 1px 4px;padding:0 2px"><strong style="font-size:13px;color:#334155">' + escapeHtml(group.info.main) + '</strong><span style="font-size:10px;color:' + (group.info.days >= 0 && group.info.days <= 2 ? '#b45309' : '#64748b') + ';font-weight:700">' + escapeHtml(group.info.sub || '') + ' · ' + group.matches.length + '試合</span></div>';
+      group.matches.forEach(m => {
+        const category = m.category || selectedGrade;
+        body += '<article style="padding:9px 10px;margin-bottom:6px;border:1px solid #e2e8f0;border-radius:10px;background:' + (group.info.days >= 0 && group.info.days <= 2 ? '#fffaf0' : '#fff') + ';border-left:3px solid ' + (group.info.days === 0 ? '#dc2626' : (group.info.days >= 0 && group.info.days <= 2 ? '#d97706' : '#cbd5e1')) + '">';
+        body += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
+        if(m.time) body += '<strong style="font-size:12px;color:#334155">' + escapeHtml(m.time) + '</strong>';
+        body += '<span style="font-size:10px;background:#e0f2fe;color:#075985;padding:2px 7px;border-radius:99px">' + escapeHtml(category) + '</span>';
+        if(group.info.days === 0) body += '<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:2px 7px;border-radius:99px">今日</span>';
+        else if(group.info.days === 1) body += '<span style="font-size:10px;background:#ffedd5;color:#9a3412;padding:2px 7px;border-radius:99px">明日</span>';
+        body += '</div>';
+        body += '<div style="font-size:13px;font-weight:700;margin-top:5px;line-height:1.4;overflow-wrap:anywhere">' + escapeHtml(m.title || '試合予定') + '</div>';
+        if(m.venue){
+          body += '<button type="button" data-upcoming-venue="' + escapeHtml(m.venue) + '" style="display:block;text-align:left;margin-top:6px;padding:0;border:0;background:transparent;color:#2563eb;font-size:12px;cursor:pointer;overflow-wrap:anywhere">📍 ' + escapeHtml(m.venue) + '　›</button>';
+        }
+        if(m.sourceUrl) body += '<div style="margin-top:5px;font-size:11px"><a href="' + escapeHtml(m.sourceUrl) + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:none">公式ページを見る ↗</a></div>';
+        body += '</article>';
+      });
+    });
+    if(gradeMatches.length > visibleMatches.length) body += '<div style="padding:8px;text-align:center;color:#64748b;font-size:11px">表示は直近30件までです。</div>';
+    body += '</div>';
   }
-  panel.innerHTML = header + `<div id="siriusUpcomingContent">${body}</div>`;
+
+  panel.innerHTML = header + '<div id="siriusUpcomingContent">' + body + '</div>';
   const toggle = panel.querySelector('#siriusUpcomingToggle');
   toggle.addEventListener('click',()=>{
     const content = panel.querySelector('#siriusUpcomingContent');
@@ -136,8 +233,10 @@ function renderSiriusUpcomingPanel(payload){
     const arrow = panel.querySelector('#siriusUpcomingArrow');
     if(arrow) arrow.textContent = isOpen ? '▸' : '▾';
   });
+  panel.querySelectorAll('[data-upcoming-venue]').forEach(button=>{
+    button.addEventListener('click',()=>focusUpcomingVenue(button.getAttribute('data-upcoming-venue') || ''));
+  });
 }
-
 /* ---------------- smart file import (Excel/CSV, points or matches) ---------------- */
 const RESULT_MAP = { Win:'勝', Lose:'敗', Draw:'分', 勝:'勝', 敗:'敗', 分:'分' };
 
