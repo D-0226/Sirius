@@ -174,7 +174,7 @@ function renderSiriusUpcomingPanel(payload){
 
   const allMatches = payload && payload.ok && Array.isArray(payload.matches) ? payload.matches : [];
   const selectedGrade = typeof currentGrade !== 'undefined' ? currentGrade : '';
-  const gradeMatches = allMatches.filter(m => normalizeUpcomingGrades(m.category).includes(normalizeUpcomingGrade(selectedGrade)));
+  const gradeMatches = allMatches.filter(m => normalizeUpcomingGrades([m.category,m.title,m.team,m.name,m.description].filter(Boolean).join(' ')).includes(normalizeUpcomingGrade(selectedGrade)));
   const sortedMatches = gradeMatches.slice().sort((a,b) => {
     const da = parseUpcomingDate(a.date), db = parseUpcomingDate(b.date);
     if(da && db) return da - db || String(a.time||'').localeCompare(String(b.time||''));
@@ -209,7 +209,7 @@ function renderSiriusUpcomingPanel(payload){
     groups.forEach(group => {
       body += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:9px 1px 4px;padding:0 2px"><strong style="font-size:13px;color:#334155">' + escapeHtml(group.info.main) + '</strong><span style="font-size:10px;color:' + (group.info.days >= 0 && group.info.days <= 2 ? '#b45309' : '#64748b') + ';font-weight:700">' + escapeHtml(group.info.sub || '') + ' · ' + group.matches.length + '試合</span></div>';
       group.matches.forEach(m => {
-        const category = m.category || selectedGrade;
+        const category = normalizeUpcomingGrades([m.category,m.title,m.team,m.name,m.description].filter(Boolean).join(' ')).includes(normalizeUpcomingGrade(selectedGrade)) ? selectedGrade : (m.category || selectedGrade);
         body += '<article style="padding:9px 10px;margin-bottom:6px;border:1px solid #e2e8f0;border-radius:10px;background:' + (group.info.days >= 0 && group.info.days <= 2 ? '#fffaf0' : '#fff') + ';border-left:3px solid ' + (group.info.days === 0 ? '#dc2626' : (group.info.days >= 0 && group.info.days <= 2 ? '#d97706' : '#cbd5e1')) + '">';
         body += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
         if(m.time) body += '<strong style="font-size:12px;color:#334155">' + escapeHtml(m.time) + '</strong>';
