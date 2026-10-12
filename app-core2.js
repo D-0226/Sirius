@@ -436,6 +436,7 @@ function refreshAllForGrade(){
   applyGroundGradeFilter();
   renderList();
   updateGuide();
+  if(typeof siriusUpcomingPayload !== 'undefined' && siriusUpcomingPayload && typeof renderSiriusUpcomingPanel === 'function') renderSiriusUpcomingPanel(siriusUpcomingPayload);
 }
 
 gradeSelectEl.addEventListener('change', (e)=>{
