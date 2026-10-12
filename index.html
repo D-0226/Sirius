@@ -725,6 +725,46 @@
     }
   }
 
+
+  /* モバイル地図：上部に操作専用の領域を確保し、検索と表示切替を集約 */
+  @media (max-width:600px), (orientation:landscape) and (max-height:600px){
+    .map-toolbar{
+      position:absolute;top:0;left:0;right:0;height:46px;z-index:1300;
+      display:flex;align-items:center;gap:5px;padding:5px 6px;
+      background:rgba(247,246,242,.97);border-bottom:1px solid var(--line);
+    }
+    .map-wrap #map{position:absolute;top:46px;left:0;right:0;bottom:0;width:100%;height:auto;}
+    .map-toolbar .mobile-search-btn{
+      display:flex;position:static;flex:0 0 54px;width:54px;height:34px;
+      align-items:center;justify-content:center;padding:5px 4px;margin:0;
+      border-radius:7px;font-size:10px;white-space:nowrap;z-index:auto;
+    }
+    .map-toolbar .map-controls{
+      position:static;display:flex;flex:1;min-width:0;width:auto;
+      flex-direction:row;align-items:center;gap:4px;
+    }
+    .map-toolbar .map-ctrl-btn{
+      flex:1;min-width:0;width:auto;height:34px;justify-content:center;
+      gap:3px;padding:4px 3px;font-size:10px;text-align:center;
+    }
+    .map-toolbar .map-ctrl-btn .ico{width:auto;font-size:11px;}
+    .map-toolbar .map-ctrl-btn .lbl{overflow:hidden;text-overflow:ellipsis;}
+    .mobile-search-panel{
+      top:50px;bottom:auto;left:6px;right:6px;z-index:1400;
+      max-height:calc(100% - 58px);overflow:visible;
+    }
+    .mobile-search-panel .search-results{max-height:45vh;}
+    .ground-mode-hint{top:52px;}
+    .map-quick-help{display:none;}
+  }
+  @media (max-width:380px){
+    .map-toolbar{gap:3px;padding-left:4px;padding-right:4px;}
+    .map-toolbar .mobile-search-btn{flex-basis:48px;width:48px;font-size:9px;}
+    .map-toolbar .map-controls{gap:3px;}
+    .map-toolbar .map-ctrl-btn{font-size:9px;}
+    .map-toolbar .map-ctrl-btn .ico{font-size:10px;}
+  }
+
 </style>
 </head>
 <body>
@@ -773,15 +813,16 @@
   
 
   <div class="map-wrap">
-    <div class="map-controls">
-      <button class="map-ctrl-btn" id="btnCycleTileLayer" title="背景地図の切替"><span class="ico">🗺️</span><span class="lbl">淡色地図</span></button>
-      <button class="map-ctrl-btn" id="btnToggleTeamLabels" title="チーム名の表示/非表示"><span class="ico">🏷️</span><span class="lbl">チーム名</span></button>
-      <button class="map-ctrl-btn active" id="btnToggleGroundsVisible" title="グラウンドの表示/非表示"><span class="ico">⚽</span><span class="lbl">グラウンド</span></button>
-      <button class="map-ctrl-btn" id="btnToggleGroundLabels" title="グラウンド名の表示/非表示"><span class="ico">🚩</span><span class="lbl">会場名</span></button>
-      <button class="map-ctrl-btn" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody" title="凡例・絞り込みの表示/非表示"><span class="ico">☰</span><span class="lbl">凡例</span></button>
+    <div class="map-toolbar">
+      <button class="mobile-search-btn" id="mobileSearchBtn" type="button">🔍 検索</button>
+      <div class="map-controls">
+        <button class="map-ctrl-btn" id="btnCycleTileLayer" title="背景地図の切替"><span class="ico">🗺️</span><span class="lbl">地図</span></button>
+        <button class="map-ctrl-btn active" id="btnToggleGroundsVisible" title="グラウンドの表示/非表示"><span class="ico">⚽</span><span class="lbl">会場</span></button>
+        <button class="map-ctrl-btn" id="btnToggleLabels" title="チーム名・会場名の表示/非表示"><span class="ico">🏷️</span><span class="lbl">名称</span></button>
+        <button class="map-ctrl-btn" id="btnHeaderToggle" data-collapse-toggle data-target="legendBody" title="凡例・絞り込みの表示/非表示"><span class="ico">☰</span><span class="lbl">凡例</span></button>
+      </div>
     </div>
     <button class="ground-mode-hint" id="groundModeHint" type="button">⚽ 会場をタップすると観戦情報を表示</button>
-    <button class="mobile-search-btn" id="mobileSearchBtn" type="button">🔍 検索</button>
     <div class="mobile-search-panel" id="mobileSearchPanel">
       <button class="mobile-search-close" id="mobileSearchClose" type="button" aria-label="検索を閉じる">×</button>
       <input type="text" id="mapSearchInputMobile" placeholder="チーム名・会場・住所" autocomplete="off">
