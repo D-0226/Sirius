@@ -129,8 +129,9 @@ document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=
   document.body.classList.toggle('ground-mode', groundsVisible);
   if(groundsVisible){
     document.body.classList.remove('team-labels-visible');
-    const teamBtn=document.getElementById('btnToggleTeamLabels');
-    if(teamBtn) teamBtn.classList.remove('active');
+    document.body.classList.remove('team-labels-visible');
+    const labelsBtn=document.getElementById('btnToggleLabels');
+    if(labelsBtn) labelsBtn.classList.toggle('active', document.body.classList.contains('ground-labels-visible'));
     applyGroundGradeFilter();
     scheduleDeclutter();
     scheduleGroundCenter();
@@ -156,16 +157,15 @@ document.getElementById('btnCycleTileLayer').addEventListener('click', ()=>{
   document.getElementById('btnCycleTileLayer').querySelector('.lbl').textContent = TILE_LABELS[currentTileKey];
 });
 
-document.getElementById('btnToggleTeamLabels').addEventListener('click', ()=>{
-  const visible = document.body.classList.toggle('team-labels-visible');
-  document.getElementById('btnToggleTeamLabels').classList.toggle('active', visible);
+document.getElementById('btnToggleLabels').addEventListener('click', ()=>{
+  const teamVisible = document.body.classList.contains('team-labels-visible');
+  const groundVisible = document.body.classList.contains('ground-labels-visible');
+  const visible = !(teamVisible && groundVisible);
+  document.body.classList.toggle('team-labels-visible', visible);
+  document.body.classList.toggle('ground-labels-visible', visible);
+  document.getElementById('btnToggleLabels').classList.toggle('active', visible);
   if(visible) declutterLabels();
-});
-
-document.getElementById('btnToggleGroundLabels').addEventListener('click', ()=>{
-  const visible = document.body.classList.toggle('ground-labels-visible');
-  document.getElementById('btnToggleGroundLabels').classList.toggle('active', visible);
-  if(visible) declutterLabels();
+  toast(visible ? 'チーム名・会場名を表示' : 'チーム名・会場名を非表示');
 });
 
 const FILTER_LABELS = {
