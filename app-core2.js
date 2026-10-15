@@ -313,7 +313,7 @@ function updateGuide(){
   const rm=document.getElementById('overallRecordMain');
   const rs=document.getElementById('overallRecordSub');
   if(tc) tc.textContent=`${opponents.size}チーム`;
-  if(ts) ts.textContent=`${GRADE_LABELS[currentGrade]||currentGrade}・対戦実績`;
+  if(ts) ts.textContent=`${currentSeason}年度・${GRADE_LABELS[currentGrade]||currentGrade}の対戦実績`;
   if(rm) rm.textContent=matches.length ? `${matches.length}試合 ${wins}勝${draws}分${loses}敗` : '試合データなし';
   const winRate=matches.length ? Math.round((wins/matches.length)*100) : 0;
   if(rs) rs.textContent=matches.length ? `勝率 ${winRate}%・${GRADE_LABELS[currentGrade]||currentGrade}` : '表示学年の全対戦';
@@ -333,7 +333,7 @@ function updateGuide(){
     sec.querySelectorAll('.recent-item').forEach(el=>el.addEventListener('click',()=>{ const id=Number(el.dataset.pointId); if(markers[id]){ selectPoint(id); map.flyTo(markers[id].getLatLng(),15); markers[id].openPopup(); } }));
   }
   // SIRIUS内のA/B/C等の対戦は別枠で蓄積し、対外戦績の勝率・チーム数には混ぜない。
-  const internal = (internalMatches||[]).filter(m=>(m.category||'').trim()===currentGrade)
+  const internal = (internalMatches||[]).filter(m=>matchesInSelectedSeason(m) && (m.category||'').trim()===currentGrade)
     .slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const oldInternal=document.getElementById('internalMatchSection');
   if(oldInternal) oldInternal.remove();
@@ -414,8 +414,28 @@ function updateGuide(){
   }
 })();
 
-/* ---------------- grade select (学年別表示) ---------------- */
+/* ---------------- year / grade select (年度・学年別表示) ---------------- */
+const yearSelectEl = document.getElementById('yearSelect');
 const gradeSelectEl = document.getElementById('gradeSelect');
+function availableSeasonYears(){
+  const years = new Set([currentSeason, currentSeasonYear()]);
+  points.forEach(p=>(p.matches||[]).forEach(m=>{
+    const year = matchSeasonYear(m);
+    if(year !== null) years.add(year);
+  }));
+  (internalMatches||[]).forEach(m=>{
+    const year = matchSeasonYear(m);
+    if(year !== null) years.add(year);
+  });
+  return [...years].filter(y=>y >= 2000 && y <= 2100).sort((a,b)=>b-a);
+}
+function refreshYearOptions(){
+  if(!yearSelectEl) return;
+  const years = availableSeasonYears();
+  yearSelectEl.innerHTML = years.map(y=>`<option value="${y}">${y}年度</option>`).join('');
+  yearSelectEl.value = String(currentSeason);
+}
+refreshYearOptions();
 gradeSelectEl.innerHTML = GRADE_OPTIONS.map(g=>`<option value="${g}">${GRADE_LABELS[g]}</option>`).join('');
 gradeSelectEl.value = currentGrade;
 
@@ -437,6 +457,19 @@ function refreshAllForGrade(){
   renderList();
   updateGuide();
   if(typeof siriusUpcomingPayload !== 'undefined' && siriusUpcomingPayload && typeof renderSiriusUpcomingPanel === 'function') renderSiriusUpcomingPanel(siriusUpcomingPayload);
+}
+
+if(yearSelectEl){
+  yearSelectEl.addEventListener('change', e=>{
+    const year = Number(e.target.value);
+    if(!Number.isInteger(year)) return;
+    currentSeason = year;
+    saveSeasonYear(currentSeason);
+    activeTeamFilter = null;
+    document.querySelectorAll('.legend-bar .legend-item[data-filter]').forEach(el=>el.classList.remove('active-filter'));
+    refreshAllForGrade();
+    toast(`表示年度: ${currentSeason}年度`);
+  });
 }
 
 gradeSelectEl.addEventListener('change', (e)=>{
