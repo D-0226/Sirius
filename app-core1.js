@@ -400,10 +400,20 @@ function groundHasOtherGradeMatches(g){
 }
 
 function applyGroundGradeFilter(){
-  Object.values(grounds).forEach(g=>{
+  const groundList = Object.values(grounds);
+  // 選択年度・学年に一致する会場が1件もない場合でも、会場マスタのピンを消さない。
+  // 戦績データ未取得や場所名の不一致があっても、グラウンド検索・確認を継続できるようにする。
+  const hasFilteredGrounds = groundList.some(g =>
+    groundHasCurrentGradeMatches(g) || (showOtherGrades && groundHasOtherGradeMatches(g))
+  );
+  if(groundsVisible && !hasFilteredGrounds && groundList.length){
+    console.warn('選択年度・学年に一致する試合会場がありません。登録済みグラウンドを全件表示します。');
+  }
+  groundList.forEach(g=>{
     const marker = groundMarkers[g.name];
     if(!marker) return;
-    const shouldShow = groundsVisible && (groundHasCurrentGradeMatches(g) || (showOtherGrades && groundHasOtherGradeMatches(g)));
+    const hasMatch = groundHasCurrentGradeMatches(g) || (showOtherGrades && groundHasOtherGradeMatches(g));
+    const shouldShow = groundsVisible && (!hasFilteredGrounds || hasMatch);
     const onMap = map.hasLayer(marker);
     if(shouldShow && !onMap) marker.addTo(map);
     if(!shouldShow && onMap) map.removeLayer(marker);
@@ -441,7 +451,8 @@ function renderGroundMarker(g){
     const btn = container.querySelector('[data-act="add-ground-memo"]');container.querySelectorAll('[data-team-link]').forEach(el=>el.onclick=ev=>{ev.preventDefault();openTeamByName(el.dataset.teamLink)});
     const ta=container.querySelector('.ground-memo-input'),po=container.querySelector('.ground-memo-poster');if(btn&&ta)btn.addEventListener('click',async()=>{btn.disabled=true;const ok=await addGroundMemoPost(g.name,ta.value,po?po.value:'');btn.disabled=false;if(ok){marker.setPopupContent(groundPopupHtml(g));marker.openPopup();toast('メモを投稿しました')}else toast('メモの投稿に失敗しました')})
   });
-  if(groundsVisible && groundHasCurrentGradeMatches(g)) marker.addTo(map);
+  // 表示対象の判定は一括フィルタ側に集約し、学年切替時の表示漏れを防ぐ。
+  if(groundsVisible) marker.addTo(map);
   groundMarkers[g.name] = marker;
 }
 
@@ -458,6 +469,7 @@ function refreshGroundMarkers(){
   Object.values(groundMarkers).forEach(m=> map.removeLayer(m));
   groundMarkers = {};
   Object.values(grounds).forEach(g=> renderGroundMarker(g));
+  applyGroundGradeFilter();
 }
 const groundModeHint=document.getElementById('groundModeHint');
 if(groundModeHint) groundModeHint.addEventListener('click',()=>{
