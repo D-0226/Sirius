@@ -94,6 +94,10 @@
     cursor:pointer;
     flex-shrink:0;
   }
+  #yearSelect{
+    max-width:88px;
+    box-sizing:border-box;
+  }
   #gradeSelect{
     max-width:84px;
     box-sizing:border-box;
@@ -710,6 +714,7 @@
     header h1{ font-size:13px; }
     .header-right{ gap:4px; }
     header .count{ font-size:10.5px; }
+    #yearSelect{ font-size:10.5px; padding:3px 4px; max-width:76px; }
     #gradeSelect{ font-size:10.5px; padding:3px 4px; max-width:64px; }
     .header-toggle{ font-size:10px; padding:3px 6px; }
   }
@@ -778,7 +783,8 @@
   <h1>FC Sirius観戦ガイド</h1>
   <div class="header-right">
     <span class="count" id="countLabel">0 地点</span>
-    <select id="gradeSelect" class="header-toggle" style="cursor:pointer;"></select>
+    <select id="yearSelect" class="header-toggle" style="cursor:pointer;" aria-label="表示年度"></select>
+    <select id="gradeSelect" class="header-toggle" style="cursor:pointer;" aria-label="表示学年"></select>
     <label class="grade-overlay-toggle" title="選択学年以外の対戦チーム・会場も地図に表示">
       <input type="checkbox" id="otherGradeToggle">
       <span>他学年も表示</span>
