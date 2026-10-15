@@ -277,6 +277,7 @@ function renderInitialMarkersInBatches(list, batchSize=24){
   }
 
   try{ persist(); }catch(e){ console.error('persist failed',e); }
+  if(typeof refreshYearOptions === 'function') refreshYearOptions();
   renderList();
   updateGuide();
   fixMapSize();
