@@ -11,6 +11,35 @@ const GRADE_LABELS = {
   'U-10':'4年生', 'U-11':'5年生', 'U-12':'6年生',
 };
 const GRADE_STORAGE_KEY = 'fcsirius_grade';
+const YEAR_STORAGE_KEY = 'fcsirius_season_year';
+
+// 年度は4月1日始まり。日付が取れない試合は、選択年度の集計対象に含めない。
+function currentSeasonYear(date = new Date()){
+  return date.getFullYear() - (date.getMonth() < 3 ? 1 : 0);
+}
+function loadSavedSeasonYear(){
+  try{
+    const saved = Number(localStorage.getItem(YEAR_STORAGE_KEY));
+    return Number.isInteger(saved) && saved >= 2000 && saved <= 2100 ? saved : currentSeasonYear();
+  }catch(e){ return currentSeasonYear(); }
+}
+function saveSeasonYear(year){
+  try{ localStorage.setItem(YEAR_STORAGE_KEY, String(year)); }catch(e){ /* ignore */ }
+}
+function matchSeasonYear(match){
+  const value = String(match && match.date || '').trim();
+  if(!value) return null;
+  const m = value.match(/^([0-9]{4})[^0-9]?([0-9]{1,2})[^0-9]?([0-9]{1,2})/);
+  if(!m) return null;
+  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  const date = new Date(year, month - 1, day);
+  if(date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return year - (month < 4 ? 1 : 0);
+}
+let currentSeason = loadSavedSeasonYear();
+function matchesInSelectedSeason(match){
+  return matchSeasonYear(match) === currentSeason;
+}
 
 function loadSavedGrade(){
   try{
@@ -25,19 +54,19 @@ let currentGrade = loadSavedGrade();
 let showOtherGrades = false;
 
 function matchesForGrade(matches){
-  return (matches||[]).filter(m => m.matchType !== 'internal' && (m.category||'').trim() === currentGrade);
+  return (matches||[]).filter(m => matchesInSelectedSeason(m) && m.matchType !== 'internal' && (m.category||'').trim() === currentGrade);
 }
 function matchesForOtherGrades(matches){
   return (matches||[]).filter(m => {
     const c = (m.category||'').trim();
-    return m.matchType !== 'internal' && c && c !== currentGrade && GRADE_OPTIONS.includes(c);
+    return matchesInSelectedSeason(m) && m.matchType !== 'internal' && c && c !== currentGrade && GRADE_OPTIONS.includes(c);
   });
 }
 function hasAnyMatch(matches){
-  return (matches||[]).some(m => m.matchType !== 'internal' && GRADE_OPTIONS.includes((m.category||'').trim()));
+  return (matches||[]).some(m => matchesInSelectedSeason(m) && m.matchType !== 'internal' && GRADE_OPTIONS.includes((m.category||'').trim()));
 }
 function gradeSummary(matches, grade){
-  const filtered=(matches||[]).filter(m=>m.matchType !== 'internal' && (m.category||'').trim()===grade);
+  const filtered=(matches||[]).filter(m=>matchesInSelectedSeason(m) && m.matchType !== 'internal' && (m.category||'').trim()===grade);
   const s={win:0,draw:0,lose:0,total:filtered.length};
   filtered.forEach(m=>{if(m.result==='勝')s.win++;else if(m.result==='分')s.draw++;else if(m.result==='敗')s.lose++;});
   return s;
