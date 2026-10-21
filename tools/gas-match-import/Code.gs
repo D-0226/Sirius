@@ -945,6 +945,31 @@ function stripMatchTeamAnnotation_(value) {
   return team.trim();
 }
 
+/**
+ * チーム名末尾注記の回帰テスト。実行ログで全件 PASS を確認する。
+ */
+function testInternalMatchTeamAnnotationNormalization() {
+  const cases = [
+    { input: 'FC SIRIUS イエロー 3位', expected: 'FC SIRIUS イエロー' },
+    { input: 'FC SIRIUS ピンク 予選2位', expected: 'FC SIRIUS ピンク' },
+    { input: 'FC SIRIUS グリーン 2位', expected: 'FC SIRIUS グリーン' },
+    { input: 'FC SIRIUS A (FM)', expected: 'FC SIRIUS A' },
+    { input: 'FC SIRIUS 1.2年 グリーン', expected: 'FC SIRIUS 1.2年 グリーン' }
+  ];
+  let failures = 0;
+  cases.forEach(function(testCase, index) {
+    const actual = stripMatchTeamAnnotation_(testCase.input);
+    const passed = actual === testCase.expected;
+    if (!passed) failures++;
+    console.log((passed ? 'PASS' : 'FAIL') + ' ' + (index + 1) +
+      ' input=' + testCase.input +
+      ' expected=' + testCase.expected +
+      ' actual=' + actual);
+  });
+  console.log('Team annotation tests: ' + (cases.length - failures) + '/' + cases.length + ' passed');
+  if (failures) throw new Error('Team annotation normalization regression test failed: ' + failures);
+}
+
 function normalizeFullWidthDigits_(text) {
   return text.replace(/[０-９]/g, function(character) {
     return String.fromCharCode(character.charCodeAt(0) - 0xFEE0);
