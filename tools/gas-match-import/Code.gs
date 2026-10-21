@@ -786,8 +786,10 @@ function parseCandidateToCsvRow_(candidate) {
     return null;
   }
 
-  opponent = opponent.replace(/\s*[（(]FM[）)]\s*$/i, '');
-  opponent = opponent.replace(/\s+(?:予選リーグ.*|決勝戦|準決勝|準々決勝|\d+位通過|\d+位決定戦|\d+位決定リーグ).*$/, '').trim();
+  // 対戦チーム名の末尾に付く大会順位・試合形式注記を両チームとも除去する。
+  // 例: 「FC SIRIUS イエロー 3位」「FC SIRIUS ピンク 予選2位」「FC SIRIUS A (FM)」
+  siriusTeam = stripMatchTeamAnnotation_(siriusTeam);
+  opponent = stripMatchTeamAnnotation_(opponent);
   if (!siriusTeam || !opponent) return null;
 
   const officialResult = (resultMark === '〇' || resultMark === '○' || resultMark === '◯')
@@ -930,6 +932,17 @@ function fetchMatchCandidates_(url, sourceYear, sourceMonth) {
     });
   }
   return { status: status, candidates: candidates };
+}
+
+/**
+ * チーム名末尾に付与された大会順位・試合区分の注記を除去する。
+ * 実際のチーム名（例:「FC SIRIUS 1.2年 グリーン」）は変更しない。
+ */
+function stripMatchTeamAnnotation_(value) {
+  let team = normalizeMatchText_(value);
+  team = team.replace(/\s*[（(]\s*FM\s*[）)]\s*$/i, '');
+  team = team.replace(/\s+(?:予選\s*\d+位(?:通過)?|\d+位通過|\d+位決定戦|\d+位決定リーグ|\d+位|決勝戦|準決勝|準々決勝|順位決定戦|予選リーグ.*)\s*$/, '');
+  return team.trim();
 }
 
 function normalizeFullWidthDigits_(text) {
