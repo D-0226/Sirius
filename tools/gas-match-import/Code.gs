@@ -786,8 +786,10 @@ function parseCandidateToCsvRow_(candidate) {
     return null;
   }
 
-  opponent = opponent.replace(/\s*[（(]FM[）)]\s*$/i, '');
-  opponent = opponent.replace(/\s+(?:予選リーグ.*|決勝戦|準決勝|準々決勝|\d+位通過|\d+位決定戦|\d+位決定リーグ).*$/, '').trim();
+  // 対戦チーム名の末尾に付く大会順位・試合形式注記を両チームとも除去する。
+  // 例: 「FC SIRIUS イエロー 3位」「FC SIRIUS ピンク 予選2位」「FC SIRIUS A (FM)」
+  siriusTeam = stripMatchTeamAnnotation_(siriusTeam);
+  opponent = stripMatchTeamAnnotation_(opponent);
   if (!siriusTeam || !opponent) return null;
 
   const officialResult = (resultMark === '〇' || resultMark === '○' || resultMark === '◯')
@@ -930,6 +932,42 @@ function fetchMatchCandidates_(url, sourceYear, sourceMonth) {
     });
   }
   return { status: status, candidates: candidates };
+}
+
+/**
+ * チーム名末尾に付与された大会順位・試合区分の注記を除去する。
+ * 実際のチーム名（例:「FC SIRIUS 1.2年 グリーン」）は変更しない。
+ */
+function stripMatchTeamAnnotation_(value) {
+  let team = normalizeMatchText_(value);
+  team = team.replace(/\s*[（(]\s*FM\s*[）)]\s*$/i, '');
+  team = team.replace(/\s+(?:予選\s*\d+位(?:通過)?|\d+位通過|\d+位決定戦|\d+位決定リーグ|\d+位|決勝戦|準決勝|準々決勝|順位決定戦|予選リーグ.*)\s*$/, '');
+  return team.trim();
+}
+
+/**
+ * チーム名末尾注記の回帰テスト。実行ログで全件 PASS を確認する。
+ */
+function testInternalMatchTeamAnnotationNormalization() {
+  const cases = [
+    { input: 'FC SIRIUS イエロー 3位', expected: 'FC SIRIUS イエロー' },
+    { input: 'FC SIRIUS ピンク 予選2位', expected: 'FC SIRIUS ピンク' },
+    { input: 'FC SIRIUS グリーン 2位', expected: 'FC SIRIUS グリーン' },
+    { input: 'FC SIRIUS A (FM)', expected: 'FC SIRIUS A' },
+    { input: 'FC SIRIUS 1.2年 グリーン', expected: 'FC SIRIUS 1.2年 グリーン' }
+  ];
+  let failures = 0;
+  cases.forEach(function(testCase, index) {
+    const actual = stripMatchTeamAnnotation_(testCase.input);
+    const passed = actual === testCase.expected;
+    if (!passed) failures++;
+    console.log((passed ? 'PASS' : 'FAIL') + ' ' + (index + 1) +
+      ' input=' + testCase.input +
+      ' expected=' + testCase.expected +
+      ' actual=' + actual);
+  });
+  console.log('Team annotation tests: ' + (cases.length - failures) + '/' + cases.length + ' passed');
+  if (failures) throw new Error('Team annotation normalization regression test failed: ' + failures);
 }
 
 function normalizeFullWidthDigits_(text) {
