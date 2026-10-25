@@ -2,7 +2,7 @@
 // data タブ（元シート形式：日付・カテゴリ・自チームスコア・相手チームスコア・勝敗・FC名 等）
 const MATCHES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTEA-Qh6qyA6ODIbsqqYmWh7AfABhhpJbpXLi571XVoj86uHFJaWgDYt3vbVKOm9gO3Y9i5Vxjqesub/pub?gid=0&single=true&output=csv';
 // 全学年データ タブ（シンプル形式：team,date,category,score,result）
-const ALL_GRADES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTEA-Qh6qyA6ODIbsqqYmWh7AfABhhpJbpXLi571XVoj86uHFJaWgDYt3vbVKOm9gO3Y9i5Vxjqesub/pub?gid=1256248240&single=true&output=csv';
+const ALL_GRADES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTEA-Qh6qyA6ODIbsqqYmWh7AfABhhpJbpXLi571XVoj86uHFJaWgDYt3vbVKOm9gO3Y9i5Vxjqesub/pub?gid=664383665&single=true&output=csv';
 
 function parseCSV(text){
   const rows = [];
