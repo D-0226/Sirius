@@ -364,6 +364,40 @@ function refreshMarkerVisual(p){
   marker.setIcon(makeIcon(p.id===selectedId, v.color, v.skull));
 }
 
+
+/* ---------------- 未登録対戦相手の検出・保留 ---------------- */
+const UNMATCHED_OPPONENTS_STORAGE_KEY = 'gsi_unmatched_opponents';
+let unmatchedOpponents = [];
+let pendingOpponentLocationName = '';
+
+async function loadUnmatchedOpponents(){
+  try{
+    if(window.storage){
+      const res = await window.storage.get(UNMATCHED_OPPONENTS_STORAGE_KEY);
+      if(res && res.value){
+        const saved = JSON.parse(res.value);
+        if(Array.isArray(saved)) unmatchedOpponents = saved;
+      }
+    }
+  }catch(e){ console.warn('未登録対戦相手の保存データを読み込めません', e); }
+  if(typeof renderUnmatchedOpponents === 'function') renderUnmatchedOpponents();
+}
+async function saveUnmatchedOpponents(){
+  try{
+    if(window.storage) await window.storage.set(UNMATCHED_OPPONENTS_STORAGE_KEY, JSON.stringify(unmatchedOpponents));
+  }catch(e){ console.error('未登録対戦相手の保存に失敗', e); }
+}
+function queueUnmatchedOpponent(name, match){
+  const clean = String(name || '').trim();
+  if(!clean) return;
+  let item = unmatchedOpponents.find(x => String(x.name || '').trim() === clean);
+  if(!item){ item = {name:clean, matches:[], firstSeenAt:new Date().toISOString()}; unmatchedOpponents.push(item); }
+  item.matches = Array.isArray(item.matches) ? item.matches : [];
+  const m = {...match};
+  const key = [m.date||'',m.category||'',m.score||'',m.result||'',m.siriusTeam||''].join('|');
+  if(!item.matches.some(x => [x.date||'',x.category||'',x.score||'',x.result||'',x.siriusTeam||''].join('|') === key)) item.matches.push(m);
+}
+
 // rows: array of arrays (raw cell values). Auto-detects header row & shape, then imports.
 function importRows(rows){
   // find a plausible header row within the first 15 rows
@@ -421,7 +455,7 @@ function importRows(rows){
       }
 
       const p = findTeamPoint(teamRaw);
-      if(!p){ noTeam++; unmatched.add(teamRaw); continue; }
+      if(!p){ noTeam++; unmatched.add(teamRaw); queueUnmatchedOpponent(teamRaw, {date, category, score, result, siriusTeam:(typeof siriusTeam !== 'undefined' ? siriusTeam : '')}); continue; }
       const key = matchKey(p.id, {date, category, score, result});
       if(existingKeys.has(key)){ dup++; continue; }
       addMatch(p.id, {date, category, score, result, place:iPlace>=0?String(r[iPlace]||'').trim():''}, {silent:true});
@@ -433,6 +467,8 @@ function importRows(rows){
     refreshGroundMarkers();
     renderList();
     persist();
+    void saveUnmatchedOpponents();
+    if(typeof renderUnmatchedOpponents === 'function') renderUnmatchedOpponents();
     let msg = `戦績 ${added}件登録`;
     if(dup) msg += `／重複${dup}件スキップ`;
     if(noTeam) msg += `／該当チーム無し${noTeam}件`;
@@ -481,7 +517,7 @@ function importRows(rows){
         continue;
       }
       const p = findTeamPoint(teamRaw);
-      if(!p){ noTeam++; unmatched.add(teamRaw); continue; }
+      if(!p){ noTeam++; unmatched.add(teamRaw); queueUnmatchedOpponent(teamRaw, {date, category, score, result, siriusTeam:(typeof siriusTeam !== 'undefined' ? siriusTeam : '')}); continue; }
       const match = {date, category, score, result, siriusTeam, pkScore, matchType:'external'};
       const key = matchKey(p.id, match);
       if(existingKeys.has(key)){ dup++; continue; }
@@ -493,6 +529,8 @@ function importRows(rows){
     touched.forEach(id=>{ const p = points.find(pp=>pp.id===id); if(p) refreshMarkerVisual(p); });
     renderList();
     persist();
+    void saveUnmatchedOpponents();
+    if(typeof renderUnmatchedOpponents === 'function') renderUnmatchedOpponents();
     let msg = `対外戦績 ${added}件登録`;
     if(dup) msg += `／重複${dup}件スキップ`;
     if(internalAdded || internalDup) msg += `／チーム内対戦 ${internalAdded}件追加・重複${internalDup}件`;
