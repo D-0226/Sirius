@@ -257,7 +257,13 @@ function renderSiriusUpcomingPanel(payload){
         body += '</div>';
         body += '<div style="font-size:13px;font-weight:700;margin-top:5px;line-height:1.4;overflow-wrap:anywhere">' + escapeHtml(m.title || '試合予定') + '</div>';
         if(m.venue){
-          body += '<button type="button" data-upcoming-venue="' + escapeHtml(m.venue) + '" style="display:block;text-align:left;margin-top:6px;padding:0;border:0;background:transparent;color:#2563eb;font-size:12px;cursor:pointer;overflow-wrap:anywhere">📍 ' + escapeHtml(m.venue) + '　›</button>';
+          const normalizeVenue = value => String(value || '').replace(/[\\s\\u3000]/g,'').replace(/[（]/g,'(').replace(/[）]/g,')').toLowerCase();
+          const venueKey = normalizeVenue(m.venue);
+          const knownGround = typeof grounds !== 'undefined' ? Object.values(grounds).find(g => {
+            const groundName = normalizeVenue(g.name);
+            return groundName && (groundName === venueKey || groundName.includes(venueKey) || venueKey.includes(groundName));
+          }) : null;
+          body += '<button type="button" data-upcoming-venue="' + escapeHtml(m.venue) + '" style="display:flex;align-items:flex-start;gap:7px;width:100%;text-align:left;margin-top:7px;padding:7px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;cursor:pointer;overflow-wrap:anywhere"><span aria-hidden="true" style="font-size:16px;line-height:1.2">🏟️</span><span style="min-width:0"><strong style="display:block">' + escapeHtml(knownGround ? knownGround.name : m.venue) + '</strong>' + (knownGround && knownGround.address ? '<span style="display:block;color:#64748b;font-size:11px;margin-top:2px">' + escapeHtml(knownGround.address) + '</span>' : '') + '<span style="display:block;font-size:10px;margin-top:2px">📍 地図で確認 ›</span></span></button>';
         }
         if(m.sourceUrl) body += '<div style="margin-top:5px;font-size:11px"><a href="' + escapeHtml(m.sourceUrl) + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:none">公式ページを見る ↗</a></div>';
         body += '</article>';
