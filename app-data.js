@@ -374,36 +374,49 @@ function refreshMarkerVisual(p){
 /* ---------------- 未登録対戦相手の検出・保留 ---------------- */
 const UNMATCHED_OPPONENTS_STORAGE_KEY = 'gsi_unmatched_opponents';
 let unmatchedOpponents = [];
-let pendingOpponentLocationName = '';
-
 async function loadUnmatchedOpponents(){
-  try{
-    if(window.storage){
-      const res = await window.storage.get(UNMATCHED_OPPONENTS_STORAGE_KEY);
-      if(res && res.value){
-        const saved = JSON.parse(res.value);
-        if(Array.isArray(saved)) unmatchedOpponents = saved;
-      }
-    }
-  }catch(e){ console.warn('未登録対戦相手の保存データを読み込めません', e); }
-  if(typeof renderUnmatchedOpponents === 'function') renderUnmatchedOpponents();
+  try{ const raw=await window.storage.get(UNMATCHED_OPPONENTS_STORAGE_KEY); const value=raw&&(raw.value||raw); unmatchedOpponents=Array.isArray(value)?value:JSON.parse(value||'[]'); }
+  catch(e){ unmatchedOpponents=[]; }
 }
 async function saveUnmatchedOpponents(){
-  try{
-    if(window.storage) await window.storage.set(UNMATCHED_OPPONENTS_STORAGE_KEY, JSON.stringify(unmatchedOpponents));
-  }catch(e){ console.error('未登録対戦相手の保存に失敗', e); }
+  try{ await window.storage.set(UNMATCHED_OPPONENTS_STORAGE_KEY,JSON.stringify(unmatchedOpponents)); }
+  catch(e){ console.error('未登録対戦相手の保存に失敗',e); }
 }
-function queueUnmatchedOpponent(name, match){
-  const clean = String(name || '').trim();
-  if(!clean) return;
-  let item = unmatchedOpponents.find(x => String(x.name || '').trim() === clean);
-  if(!item){ item = {name:clean, matches:[], firstSeenAt:new Date().toISOString()}; unmatchedOpponents.push(item); }
-  item.matches = Array.isArray(item.matches) ? item.matches : [];
-  const m = {...match};
-  const key = [m.date||'',m.category||'',m.score||'',m.result||'',m.siriusTeam||''].join('|');
-  if(!item.matches.some(x => [x.date||'',x.category||'',x.score||'',x.result||'',x.siriusTeam||''].join('|') === key)) item.matches.push(m);
+function queueUnmatchedOpponent(name,match){
+  const clean=String(name||'').trim(); if(!clean)return;
+  let item=unmatchedOpponents.find(x=>String(x.name||'').trim()===clean);
+  if(!item){item={name:clean,matches:[],firstSeenAt:new Date().toISOString()};unmatchedOpponents.push(item);}
+  const m={...match}; const key=[m.date||'',m.category||'',m.score||'',m.result||'',m.siriusTeam||''].join('|');
+  if(!item.matches.some(x=>[x.date||'',x.category||'',x.score||'',x.result||'',x.siriusTeam||''].join('|')===key))item.matches.push(m);
 }
-
+/* Batch location initialization: register only search results whose display name explicitly contains the team name.
+   Unconfirmed locations are held instead of pinning a guessed location. */
+async function autoRegisterUnmatchedOpponentsBatch(){
+  const pending=unmatchedOpponents.slice(); let registered=0,held=0;
+  const norm=s=>String(s||'').normalize('NFKC').replace(/[\\s\\u3000]+/g,'').toLowerCase();
+  for(const item of pending){
+    if(points.some(p=>norm(p.name)===norm(item.name))){unmatchedOpponents=unmatchedOpponents.filter(x=>x!==item);continue;}
+    try{
+      const q=encodeURIComponent(item.name+' 愛知県 サッカー');
+      const response=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&country=Japan&q='+q,{headers:{'Accept':'application/json'}});
+      if(!response.ok)throw new Error('Geocoding HTTP '+response.status);
+      const results=await response.json(); const target=norm(item.name);
+      const candidate=results.find(x=>norm(x.display_name||'').includes(target)&&Number.isFinite(Number(x.lat))&&Number.isFinite(Number(x.lon)));
+      if(!candidate){held++;await new Promise(resolve=>setTimeout(resolve,1100));continue;}
+      const p=addPoint(item.name,Number(candidate.lat),Number(candidate.lon),{
+        silent:true,
+        note:'位置初期登録候補（要公式確認）：'+String(candidate.display_name||'').slice(0,180),
+        matches:(item.matches||[]).map(m=>({...m,matchType:'external'}))
+      });
+      if(p){registered++;unmatchedOpponents=unmatchedOpponents.filter(x=>x!==item);}
+    }catch(e){held++;console.warn('チーム位置の自動初期登録を保留:',item.name,e);}
+    await new Promise(resolve=>setTimeout(resolve,1100));
+  }
+  await saveUnmatchedOpponents();
+  if(registered){await persist();renderList();updateGuide();toast('未登録チーム '+registered+'件を位置候補付きで初期登録しました');}
+  console.info('未登録チーム位置バッチ:',{registered,held,remaining:unmatchedOpponents.length});
+  if(held)console.warn('位置を特定できず保留したチーム:',unmatchedOpponents.map(x=>x.name));
+}
 // rows: array of arrays (raw cell values). Auto-detects header row & shape, then imports.
 function importRows(rows){
   // find a plausible header row within the first 15 rows
@@ -473,8 +486,7 @@ function importRows(rows){
     refreshGroundMarkers();
     renderList();
     persist();
-    void saveUnmatchedOpponents();
-    if(typeof renderUnmatchedOpponents === 'function') renderUnmatchedOpponents();
+    void saveUnmatchedOpponents().then(()=>autoRegisterUnmatchedOpponentsBatch());
     let msg = `戦績 ${added}件登録`;
     if(dup) msg += `／重複${dup}件スキップ`;
     if(noTeam) msg += `／該当チーム無し${noTeam}件`;
@@ -535,8 +547,7 @@ function importRows(rows){
     touched.forEach(id=>{ const p = points.find(pp=>pp.id===id); if(p) refreshMarkerVisual(p); });
     renderList();
     persist();
-    void saveUnmatchedOpponents();
-    if(typeof renderUnmatchedOpponents === 'function') renderUnmatchedOpponents();
+    void saveUnmatchedOpponents().then(()=>autoRegisterUnmatchedOpponentsBatch());
     let msg = `対外戦績 ${added}件登録`;
     if(dup) msg += `／重複${dup}件スキップ`;
     if(internalAdded || internalDup) msg += `／チーム内対戦 ${internalAdded}件追加・重複${internalDup}件`;
