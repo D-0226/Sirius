@@ -221,6 +221,16 @@ function renderInitialMarkersInBatches(list, batchSize=24){
         const p={id:nextId++,name:name.trim(),lat:Number(lat),lng:Number(lng),note:note||'',matches:[],url:url||''};
         points.push(p);
       });
+    } else {
+      // 保存済みの地図データがある場合も、今回追加された必須地点が欠落していれば補完する。
+      // 既存地点やユーザーの座標・メモは上書きしない。
+      const yatomijssSeed = SEED_DATA.find(row => String(row[0]).trim() === '弥富JSS');
+      const hasYatomijss = points.some(p => String(p.name || '').trim() === '弥富JSS');
+      if(yatomijssSeed && !hasYatomijss){
+        const [name,lat,lng,note,url] = yatomijssSeed;
+        points.push({id:nextId++,name:name.trim(),lat:Number(lat),lng:Number(lng),note:note||'',matches:[],url:url||''});
+        persist();
+      }
     }
     // マーカー生成を分割し、ブラウザの描画を途中で止めない。
     await renderInitialMarkersInBatches(points);
