@@ -187,6 +187,6 @@ function normalizeGroundAuditText_(value) {
   return String(value == null ? '' : value)
     .normalize('NFKC')
     .toLowerCase()
-    .replace(/[\\s　_-]+/g, '')
+    .replace(/[\s　_-]+/g, '')
     .trim();
 }
