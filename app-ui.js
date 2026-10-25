@@ -215,6 +215,7 @@ function renderInitialMarkersInBatches(list, batchSize=24){
   // まずチームを即時表示。外部CSV/グラウンド取得でエラーが起きても、
   // 地図本体が「0地点」のまま止まらないようにする。
   try{ await loadPersisted(); }catch(e){ console.error('persist load failed',e); }
+  try{ await loadUnmatchedOpponents(); }catch(e){ console.error('unmatched opponent load failed',e); }
 
   try{
     if(points.length===0){
