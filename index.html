@@ -775,6 +775,21 @@
     .map-toolbar .map-ctrl-btn .ico{font-size:10px;}
   }
 
+
+  .unmatched-panel{display:none;margin:8px 12px 12px;padding:12px;border:1px solid #d8c9a5;border-radius:10px;background:#fffdf7;color:#24303b;}
+  .unmatched-panel.visible{display:block;}
+  .unmatched-panel h2{font-size:14px;margin:0 0 5px;}
+  .unmatched-panel .unmatched-help{font-size:12px;line-height:1.5;color:#59636e;margin-bottom:8px;}
+  .unmatched-item{display:flex;gap:10px;align-items:center;justify-content:space-between;border-top:1px solid #eee4cf;padding:8px 0;}
+  .unmatched-item-main{min-width:0;flex:1;font-size:12px;line-height:1.45;}
+  .unmatched-item-main strong{display:block;font-size:13px;overflow-wrap:anywhere;}
+  .unmatched-item-main small{color:#66717d;}
+  .unmatched-action{border:1px solid #245b78;border-radius:7px;background:#245b78;color:#fff;padding:7px 9px;font-size:11px;white-space:nowrap;cursor:pointer;}
+  .unmatched-action.secondary{background:#fff;color:#245b78;}
+  .unmatched-location-mode{display:none;padding:8px;border-radius:7px;background:#eaf3f7;color:#17465c;font-size:12px;margin-top:8px;}
+  .unmatched-location-mode.visible{display:block;}
+  @media(max-width:600px){.unmatched-panel{margin:6px 7px 10px;padding:9px}.unmatched-item{align-items:flex-start;flex-direction:column}.unmatched-action{width:100%}}
+
 </style>
 </head>
 <body>
@@ -843,6 +858,15 @@
     <div class="map-quick-help">🟢勝率高　🟠要注意　🔴勝率低　⚽会場</div>
     <div class="toast" id="toast"></div>
   </div>
+</div>
+
+</div>
+
+<div class="unmatched-panel" id="unmatchedOpponentPanel" aria-live="polite">
+  <h2>未登録の対戦相手 <span id="unmatchedOpponentCount"></span></h2>
+  <div class="unmatched-help">試合データに新しいチーム名が見つかりました。地図上の位置を確認して登録してください。未登録の間は試合データを保留し、既存チームへ誤って紐づけません。</div>
+  <div id="unmatchedOpponentList"></div>
+  <div class="unmatched-location-mode" id="unmatchedLocationMode">地図上でこのチームの位置をクリックしてください。活動場所が不明な場合は、確認できる代表地点を選んでください。 <button type="button" class="unmatched-action secondary" id="cancelUnmatchedLocation">キャンセル</button></div>
 </div>
 
 <script src="app-core1.js?v=20261016-1" defer></script><script src="app-core2.js" defer></script><script src="app-data.js?v=20261012-5" defer></script><script src="app-ui.js" defer></script></body>
