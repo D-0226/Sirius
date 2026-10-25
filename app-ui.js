@@ -207,60 +207,6 @@ function renderInitialMarkersInBatches(list, batchSize=24){
 }
 
 
-/* ---------------- 未登録対戦相手の確認・地図登録 ---------------- */
-function renderUnmatchedOpponents(){
-  const panel=document.getElementById('unmatchedOpponentPanel');
-  const list=document.getElementById('unmatchedOpponentList');
-  const count=document.getElementById('unmatchedOpponentCount');
-  if(!panel || !list || !count) return;
-  const items=Array.isArray(unmatchedOpponents)?unmatchedOpponents:[];
-  panel.classList.toggle('visible',items.length>0);
-  count.textContent=items.length ? '('+items.length+')' : '';
-  list.innerHTML=items.map(item=>{
-    const matches=Array.isArray(item.matches)?item.matches:[];
-    const latest=matches.slice().sort((x,y)=>String(y.date||'').localeCompare(String(x.date||'')))[0]||{};
-    const summary=matches.length+'試合'+(latest.date?'／最新 '+escapeHtml(latest.date):'')+(latest.category?' '+escapeHtml(latest.category):'')+(latest.score?'／'+escapeHtml(latest.score):'');
-    return '<div class="unmatched-item"><div class="unmatched-item-main"><strong>'+escapeHtml(item.name)+'</strong><small>'+summary+'</small></div><button type="button" class="unmatched-action" data-unmatched-place="'+escapeHtml(item.name)+'">地図で位置を指定</button></div>';
-  }).join('');
-}
-function beginUnmatchedOpponentLocation(name){
-  const item=(unmatchedOpponents||[]).find(x=>x.name===name);
-  if(!item) return;
-  pendingOpponentLocationName=name;
-  const mode=document.getElementById('unmatchedLocationMode');
-  if(mode) mode.classList.add('visible');
-  toast('地図上で「'+name+'」の位置をクリックしてください');
-  map.getContainer().style.cursor='crosshair';
-}
-function cancelUnmatchedOpponentLocation(){
-  pendingOpponentLocationName='';
-  const mode=document.getElementById('unmatchedLocationMode');
-  if(mode) mode.classList.remove('visible');
-  map.getContainer().style.cursor='';
-}
-document.addEventListener('click',e=>{
-  const btn=e.target.closest('[data-unmatched-place]');
-  if(btn){ beginUnmatchedOpponentLocation(btn.getAttribute('data-unmatched-place')); return; }
-  if(e.target && e.target.id==='cancelUnmatchedLocation') cancelUnmatchedOpponentLocation();
-});
-map.on('click',async e=>{
-  if(!pendingOpponentLocationName) return;
-  const name=pendingOpponentLocationName;
-  const item=(unmatchedOpponents||[]).find(x=>x.name===name);
-  if(!item){cancelUnmatchedOpponentLocation();return;}
-  const existing=points.find(p=>String(p.name||'').trim()===name);
-  if(existing){ toast('同名チームはすでに地図に登録されています'); cancelUnmatchedOpponentLocation(); return; }
-  const matches=(item.matches||[]).map(m=>({...m,matchType:'external'}));
-  const point=addPoint(name,e.latlng.lat,e.latlng.lng,{fly:true,matches,note:'未登録対戦相手から位置を確認して登録'});
-  if(!point) return;
-  unmatchedOpponents=unmatchedOpponents.filter(x=>x.name!==name);
-  await saveUnmatchedOpponents();
-  renderUnmatchedOpponents();
-  cancelUnmatchedOpponentLocation();
-  updateGuide();
-  toast('「'+name+'」を地図に登録し、保留中の試合データを紐づけました');
-});
-
 /* ---------------- init ---------------- */
 (async function init(){
   // 試合予定は既存の戦績・地図処理とは独立して取得する。
