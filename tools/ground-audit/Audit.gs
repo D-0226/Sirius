@@ -16,7 +16,6 @@ function auditGroundDataReadOnly() {
     audit: 'FC SIRIUS ground data read-only audit',
     executedAt: new Date().toISOString(),
     spreadsheetName: ss.getName(),
-    spreadsheetId: ss.getId(),
     readOnly: true,
     sheets: [],
     issues: []
@@ -49,7 +48,7 @@ function auditGroundDataReadOnly() {
       const latCol = findCol(['lat', 'latitude', '緯度']);
       const lngCol = findCol(['lng', 'lon', 'longitude', '経度']);
       const memoCol = findCol(['memo', 'メモ', '観戦メモ']);
-      const dataRows = values.slice(headerRowIndex + 1).filter(row => row.some(v => String(v || '').trim() !== ''));
+      const dataRows = values.slice(headerRowIndex + 1).map((row, i) => ({row, sheetRow: headerRowIndex + 2 + i})).filter(item => item.row.some(v => String(v || '').trim() !== ''));
 
       sheetInfo.dataRows = dataRows.length;
       sheetInfo.detectedColumns = {
@@ -62,9 +61,10 @@ function auditGroundDataReadOnly() {
       if (groundCol >= 0) {
         const namesSeen = {};
         const blankGroundRows = [];
-        dataRows.forEach((row, i) => {
+        dataRows.forEach(item => {
+          const row = item.row;
           const ground = String(row[groundCol] || '').trim();
-          const sheetRow = headerRowIndex + 2 + i;
+          const sheetRow = item.sheetRow;
           if (!ground) blankGroundRows.push(sheetRow);
           else {
             const key = normalizeGroundAuditText_(ground);
@@ -74,9 +74,9 @@ function auditGroundDataReadOnly() {
         });
         const duplicates = Object.keys(namesSeen)
           .filter(k => namesSeen[k].rows.length > 1)
-          .map(k => ({normalizedName: k, name: namesSeen[k].name, rows: namesSeen[k].rows}));
-        sheetInfo.checks.push({check: 'blank_ground_name_rows', count: blankGroundRows.length, sampleRows: blankGroundRows.slice(0, 30)});
-        sheetInfo.checks.push({check: 'duplicate_normalized_ground_names', count: duplicates.length, candidates: duplicates.slice(0, 50)});
+          .map(k => ({normalizedName: k, name: namesSeen[k].name, rows: namesSeen[k].rows.slice(0, 10), totalRows: namesSeen[k].rows.length}));
+        sheetInfo.checks.push({check: 'blank_ground_name_rows', count: blankGroundRows.length, sampleRows: blankGroundRows.slice(0, 10)});
+        sheetInfo.checks.push({check: 'duplicate_normalized_ground_names', count: duplicates.length, candidates: duplicates.slice(0, 10)});
 
         if (duplicates.length) report.issues.push({sheet: name, type: 'duplicate_ground_names', count: duplicates.length});
         if (blankGroundRows.length) report.issues.push({sheet: name, type: 'blank_ground_name', count: blankGroundRows.length});
@@ -84,7 +84,8 @@ function auditGroundDataReadOnly() {
 
       if (latCol >= 0 && lngCol >= 0) {
         const invalid = [];
-        dataRows.forEach((row, i) => {
+        dataRows.forEach(item => {
+          const row = item.row;
           const ground = groundCol >= 0 ? String(row[groundCol] || '').trim() : '';
           const latText = String(row[latCol] || '').trim();
           const lngText = String(row[lngCol] || '').trim();
@@ -92,19 +93,19 @@ function auditGroundDataReadOnly() {
           const lng = Number(lngText);
           if (!latText || !lngText || !Number.isFinite(lat) || !Number.isFinite(lng) ||
               lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-            invalid.push({row: headerRowIndex + 2 + i, ground: ground, lat: latText, lng: lngText});
+            invalid.push({row: item.sheetRow, ground: ground, lat: latText, lng: lngText});
           }
         });
-        sheetInfo.checks.push({check: 'invalid_or_missing_coordinates', count: invalid.length, candidates: invalid.slice(0, 100)});
+        sheetInfo.checks.push({check: 'invalid_or_missing_coordinates', count: invalid.length, candidates: invalid.slice(0, 20)});
         if (invalid.length) report.issues.push({sheet: name, type: 'invalid_coordinates', count: invalid.length});
       }
 
       if (memoCol >= 0) {
         const emptyMemoRows = [];
-        dataRows.forEach((row, i) => {
-          if (!String(row[memoCol] || '').trim()) emptyMemoRows.push(headerRowIndex + 2 + i);
+        dataRows.forEach(item => {
+          if (!String(item.row[memoCol] || '').trim()) emptyMemoRows.push(item.sheetRow);
         });
-        sheetInfo.checks.push({check: 'blank_memo_rows', count: emptyMemoRows.length, sampleRows: emptyMemoRows.slice(0, 30)});
+        sheetInfo.checks.push({check: 'blank_memo_rows', count: emptyMemoRows.length, sampleRows: emptyMemoRows.slice(0, 10)});
       }
     } else {
       sheetInfo.headerRow = null;
@@ -122,7 +123,20 @@ function auditGroundDataReadOnly() {
     }
   });
 
-  console.log(JSON.stringify(report, null, 2));
+  // 全シートの詳細を1つの巨大ログにせず、概要とシート単位で出力する。
+  const summary = {
+    audit: report.audit,
+    executedAt: report.executedAt,
+    spreadsheetName: report.spreadsheetName,
+    readOnly: report.readOnly,
+    sheetCount: report.sheets.length,
+    issueCount: report.issues.length,
+    issues: report.issues
+  };
+  console.log('[GROUND_AUDIT_SUMMARY] ' + JSON.stringify(summary));
+  report.sheets.forEach(sheet => {
+    console.log('[GROUND_AUDIT_SHEET] ' + JSON.stringify(sheet));
+  });
   return report;
 }
 
