@@ -177,6 +177,7 @@ function auditGroundDataReadOnly() {
     issues: report.issues
   };
   console.log('[GROUND_AUDIT_SUMMARY] ' + JSON.stringify(summary));
+  if (report.venueCrossCheck) console.log('[GROUND_AUDIT_VENUES] ' + JSON.stringify(report.venueCrossCheck));
   report.sheets.forEach(sheet => {
     console.log('[GROUND_AUDIT_SHEET] ' + JSON.stringify(sheet));
   });
