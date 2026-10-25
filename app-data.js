@@ -256,14 +256,20 @@ function renderSiriusUpcomingPanel(payload){
         else if(group.info.days === 1) body += '<span style="font-size:10px;background:#ffedd5;color:#9a3412;padding:2px 7px;border-radius:99px">明日</span>';
         body += '</div>';
         body += '<div style="font-size:13px;font-weight:700;margin-top:5px;line-height:1.4;overflow-wrap:anywhere">' + escapeHtml(m.title || '試合予定') + '</div>';
-        if(m.venue){
+        const venueValue = [m.venue, m.groundName, m.ground, m.location, m.place, m.field, m.stadium, m.会場, m.グラウンド]
+          .find(value => typeof value === 'string' && value.trim()) || '';
+        const venueText = String(venueValue).trim();
+        if(venueText){
           const normalizeVenue = value => String(value || '').replace(/[\\s\\u3000]/g,'').replace(/[（]/g,'(').replace(/[）]/g,')').toLowerCase();
-          const venueKey = normalizeVenue(m.venue);
+          const venueKey = normalizeVenue(venueText);
           const knownGround = typeof grounds !== 'undefined' ? Object.values(grounds).find(g => {
             const groundName = normalizeVenue(g.name);
             return groundName && (groundName === venueKey || groundName.includes(venueKey) || venueKey.includes(groundName));
           }) : null;
-          body += '<button type="button" data-upcoming-venue="' + escapeHtml(m.venue) + '" style="display:flex;align-items:flex-start;gap:7px;width:100%;text-align:left;margin-top:7px;padding:7px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;cursor:pointer;overflow-wrap:anywhere"><span aria-hidden="true" style="font-size:16px;line-height:1.2">🏟️</span><span style="min-width:0"><strong style="display:block">' + escapeHtml(knownGround ? knownGround.name : m.venue) + '</strong>' + (knownGround && knownGround.address ? '<span style="display:block;color:#64748b;font-size:11px;margin-top:2px">' + escapeHtml(knownGround.address) + '</span>' : '') + '<span style="display:block;font-size:10px;margin-top:2px">📍 地図で確認 ›</span></span></button>';
+          const displayGroundName = knownGround ? knownGround.name : venueText;
+          body += '<button type="button" data-upcoming-venue="' + escapeHtml(venueText) + '" style="display:flex;align-items:flex-start;gap:7px;width:100%;text-align:left;margin-top:7px;padding:7px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;cursor:pointer;overflow-wrap:anywhere"><span aria-hidden="true" style="font-size:16px;line-height:1.2">🏟️</span><span style="min-width:0"><strong style="display:block">' + escapeHtml(displayGroundName) + '</strong>' + (knownGround && knownGround.address ? '<span style="display:block;color:#64748b;font-size:11px;margin-top:2px">📍 ' + escapeHtml(knownGround.address) + '</span>' : '') + '<span style="display:block;font-size:10px;margin-top:2px">🗺️ 地図で確認 ›</span></span></button>';
+        }else{
+          body += '<div style="display:flex;align-items:flex-start;gap:7px;margin-top:7px;padding:7px 8px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#64748b;font-size:12px"><span aria-hidden="true" style="font-size:16px">🏟️</span><span>グラウンド情報は公式予定に記載されていません</span></div>';
         }
         if(m.sourceUrl) body += '<div style="margin-top:5px;font-size:11px"><a href="' + escapeHtml(m.sourceUrl) + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:none">公式ページを見る ↗</a></div>';
         body += '</article>';
