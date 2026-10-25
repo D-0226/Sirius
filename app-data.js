@@ -300,6 +300,9 @@ const TEAM_NAME_ALIASES = {
   'FC golazo goi一宮': 'FC golazo gol一宮',
   'RED BAZZ': 'RED BUZZ',
   'FC Toyotake': 'FC Toyoake',
+  // 学年・A/B表記付きの対戦相手は、地図上のチーム代表地点に紐づける
+  '弥富JSS U-7A': '弥富JSS',
+  '弥富JSS U-7B': '弥富JSS',
 };
 
 function findTeamPoint(name){
