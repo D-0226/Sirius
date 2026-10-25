@@ -116,6 +116,49 @@ function auditGroundDataReadOnly() {
     report.sheets.push(sheetInfo);
   });
 
+  // 試合データの「場所」と会場マスター ground の照合（読み取り専用）。
+  // 既存の試合行は変更せず、マスター未登録の会場名候補だけを抽出する。
+  const groundMaster = ss.getSheetByName('ground');
+  const matchSheet = ss.getSheetByName('data');
+  if (groundMaster && matchSheet) {
+    const masterValues = groundMaster.getDataRange().getDisplayValues();
+    const masterHeaderIdx = masterValues.findIndex(row => row.map(normalizeGroundAuditText_).includes('ground'));
+    const matchValues = matchSheet.getDataRange().getDisplayValues();
+    const matchHeaderIdx = matchValues.findIndex(row => row.map(normalizeGroundAuditText_).includes('場所'));
+    const crossCheck = {masterSheet: 'ground', matchSheet: 'data', status: 'checked', masterNameCount: 0, distinctVenueCount: 0, unmatchedVenueCount: 0, unmatchedVenues: []};
+    if (masterHeaderIdx < 0 || matchHeaderIdx < 0) {
+      crossCheck.status = 'header_not_found';
+      crossCheck.masterHeaderRowFound = masterHeaderIdx >= 0;
+      crossCheck.matchHeaderRowFound = matchHeaderIdx >= 0;
+    } else {
+      const masterHeader = masterValues[masterHeaderIdx].map(v => String(v || '').trim());
+      const masterCol = masterHeader.findIndex(v => normalizeGroundAuditText_(v) === 'ground');
+      const masterNames = new Set();
+      masterValues.slice(masterHeaderIdx + 1).forEach(row => {
+        const value = String(row[masterCol] || '').trim();
+        if (value) masterNames.add(normalizeGroundAuditText_(value));
+      });
+      const matchHeader = matchValues[matchHeaderIdx].map(v => String(v || '').trim());
+      const placeCol = matchHeader.findIndex(v => normalizeGroundAuditText_(v) === '場所');
+      const venues = {};
+      matchValues.slice(matchHeaderIdx + 1).forEach((row, i) => {
+        const venue = String(row[placeCol] || '').trim();
+        if (!venue) return;
+        const key = normalizeGroundAuditText_(venue);
+        if (!venues[key]) venues[key] = {name: venue, rows: [], count: 0};
+        venues[key].count++;
+        if (venues[key].rows.length < 10) venues[key].rows.push(matchHeaderIdx + 2 + i);
+      });
+      const unmatched = Object.keys(venues).filter(key => !masterNames.has(key)).map(key => venues[key]);
+      crossCheck.masterNameCount = masterNames.size;
+      crossCheck.distinctVenueCount = Object.keys(venues).length;
+      crossCheck.unmatchedVenueCount = unmatched.length;
+      crossCheck.unmatchedVenues = unmatched.slice(0, 100);
+    }
+    report.venueCrossCheck = crossCheck;
+    if (crossCheck.unmatchedVenueCount) report.issues.push({type: 'venues_missing_from_ground_master', count: crossCheck.unmatchedVenueCount});
+  }
+
   // 必須タブの有無を確認するだけで、タブ作成や名称変更はしない。
   ['grounds', 'grounds_memo'].forEach(requiredName => {
     if (!names.includes(requiredName)) {
