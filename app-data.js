@@ -568,7 +568,7 @@ function importRows(rows){
     const iMatchType = col('matchType')>=0?col('matchType'):col('試合区分');
     let added=0, dup=0, noTeam=0, internalAdded=0, internalDup=0; const unmatched = new Set(); const touched = new Set();
     const existingKeys = new Set();
-    points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m))));
+    points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m, !!m.opponentTeamName))));
     for(let i=headerIdx+1;i<rows.length;i++){
       const r = rows[i]||[];
       if(r.every(c=> c===undefined || c===null || String(c).trim()==='')) continue;
