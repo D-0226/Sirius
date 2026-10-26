@@ -205,6 +205,33 @@ function renderSiriusUpcomingPanel(payload){
     panel.style.cssText = 'position:fixed;z-index:1200;right:10px;bottom:10px;width:min(420px,calc(100vw - 20px));max-height:min(68vh,600px);overflow:hidden;background:#fff;color:#1f2937;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.22);font:14px/1.45 system-ui,-apple-system,sans-serif;';
     document.body.appendChild(panel);
   }
+  // 対戦情報が展開されている間は予定パネルを一時的に隠し、スマホ縦横での重なりを防ぐ。
+  const syncUpcomingPanelVisibility = () => {
+    const toggle = document.getElementById('matchInfoToggle');
+    const matchInfoExpanded = !!toggle && toggle.getAttribute('aria-expanded') === 'true';
+    const isMobileLayout = window.matchMedia('(max-width: 600px), (orientation: landscape) and (max-height: 600px)').matches;
+    panel.style.display = isMobileLayout && matchInfoExpanded ? 'none' : '';
+  };
+  if(!panel.dataset.layoutSyncBound){
+    panel.dataset.layoutSyncBound = '1';
+    const bindMatchToggle = () => {
+      const toggle = document.getElementById('matchInfoToggle');
+      if(toggle && !toggle.dataset.upcomingSyncBound){
+        toggle.dataset.upcomingSyncBound = '1';
+        toggle.addEventListener('click', () => requestAnimationFrame(syncUpcomingPanelVisibility));
+      }
+    };
+    bindMatchToggle();
+    window.addEventListener('resize', syncUpcomingPanelVisibility);
+    window.addEventListener('orientationchange', syncUpcomingPanelVisibility);
+    // match-info-toggle は遅れて生成される場合があるため、DOM変化にも追従する。
+    const observer = new MutationObserver(() => {
+      bindMatchToggle();
+      syncUpcomingPanelVisibility();
+    });
+    observer.observe(document.body, {childList:true,subtree:true});
+  }
+  syncUpcomingPanelVisibility();
 
   const allMatches = payload && payload.ok && Array.isArray(payload.matches) ? payload.matches : [];
   const selectedGrade = typeof currentGrade !== 'undefined' ? currentGrade : '';
