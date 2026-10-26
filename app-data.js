@@ -377,12 +377,21 @@ function refreshMarkerVisual(p){
 const UNMATCHED_OPPONENTS_STORAGE_KEY = 'gsi_unmatched_opponents';
 let unmatchedOpponents = [];
 async function loadUnmatchedOpponents(){
-  try{ const raw=await window.storage.get(UNMATCHED_OPPONENTS_STORAGE_KEY); const value=raw&&(raw.value||raw); unmatchedOpponents=Array.isArray(value)?value:JSON.parse(value||'[]'); }
-  catch(e){ unmatchedOpponents=[]; }
+  try{
+    const raw = window.localStorage.getItem(UNMATCHED_OPPONENTS_STORAGE_KEY);
+    const value = raw ? JSON.parse(raw) : [];
+    unmatchedOpponents = Array.isArray(value) ? value : [];
+  }catch(e){
+    unmatchedOpponents = [];
+    console.warn('未登録対戦相手の読み込みに失敗', e);
+  }
 }
 async function saveUnmatchedOpponents(){
-  try{ await window.storage.set(UNMATCHED_OPPONENTS_STORAGE_KEY,JSON.stringify(unmatchedOpponents)); }
-  catch(e){ console.error('未登録対戦相手の保存に失敗',e); }
+  try{
+    window.localStorage.setItem(UNMATCHED_OPPONENTS_STORAGE_KEY, JSON.stringify(unmatchedOpponents));
+  }catch(e){
+    console.error('未登録対戦相手の保存に失敗', e);
+  }
 }
 function queueUnmatchedOpponent(name,match){
   const clean=String(name||'').trim(); if(!clean)return;
