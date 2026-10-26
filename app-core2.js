@@ -683,7 +683,7 @@ function popupHtml(p){
       .map(m=>{
         const place=m.place ? `<a href="#" data-ground-link="${escapeHtml(m.place)}" style="color:#2563EB;text-decoration:none;">${escapeHtml(m.place)}</a>` : '';
         return `<div class="precord-row">
-          <span>${escapeHtml(m.date||'')}${m.category ? ' ' + escapeHtml(m.category) : ''}</span>
+          <span>${escapeHtml(m.date||'')}${m.category ? ' ' + escapeHtml(m.category) : ''}${m.opponentTeamName ? '<br><span style="color:#64748b;font-size:10px;">' + escapeHtml(m.opponentTeamName) + '</span>' : ''}</span>
           <span class="pmono">${m.siriusTeam ? escapeHtml(m.siriusTeam)+' ' : ''}${escapeHtml(m.score||'')}${m.pkScore ? ' (PK '+escapeHtml(m.pkScore)+')' : ''} ${escapeHtml(m.result||'')}</span>
           ${place ? `<span style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${place}</span>` : ''}
         </div>`;
