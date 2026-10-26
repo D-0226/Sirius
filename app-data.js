@@ -367,8 +367,16 @@ function findTeamPoint(name){
   return p;
 }
 
-function matchKey(teamId, m){
-  return [teamId, m.date||'', m.category||'', m.score||'', m.result||'', m.siriusTeam||'', m.pkScore||'', m.opponentTeamName||''].join('|');
+function matchKey(teamId, m, includeOpponentName=true){
+  const parts=[teamId, m.date||'', m.category||'', m.score||'', m.result||'', m.siriusTeam||'', m.pkScore||''];
+  if(includeOpponentName) parts.push(m.opponentTeamName||'');
+  return parts.join('|');
+}
+// 元チーム名を持たない既存レコードとの重複も確認する。
+// ただし、新たに登録したA/Bレコード同士は元チーム名付きキーで区別する。
+function hasMatchKey(existingKeys, teamId, match){
+  return existingKeys.has(matchKey(teamId, match, true)) ||
+    existingKeys.has(matchKey(teamId, match, false));
 }
 
 function isSiriusTeamName(name){
@@ -491,7 +499,7 @@ function importRows(rows){
     let added=0, dup=0, noTeam=0; const unmatched = new Set(); const touched = new Set();
     const unmatchedPlaces = new Set();
     const existingKeys = new Set();
-    points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m))));
+    points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m, !!m.opponentTeamName))));
     for(let i=headerIdx+1;i<rows.length;i++){
       const r = rows[i]||[];
       if(r.every(c=> c===undefined || c===null || String(c).trim()==='')) continue;
@@ -526,10 +534,10 @@ function importRows(rows){
 
       const p = findTeamPoint(teamRaw);
       if(!p){ noTeam++; unmatched.add(teamRaw); queueUnmatchedOpponent(teamRaw, {date, category, score, result, siriusTeam:(typeof siriusTeam !== 'undefined' ? siriusTeam : '')}); continue; }
-      const key = matchKey(p.id, {date, category, score, result});
-      if(existingKeys.has(key)){ dup++; continue; }
-      addMatch(p.id, {date, category, score, result, place:iPlace>=0?String(r[iPlace]||'').trim():'', opponentTeamName:teamRaw}, {silent:true});
-      existingKeys.add(key);
+      const match = {date, category, score, result, place:iPlace>=0?String(r[iPlace]||'').trim():'', opponentTeamName:teamRaw};
+      if(hasMatchKey(existingKeys, p.id, match)){ dup++; continue; }
+      addMatch(p.id, match, {silent:true});
+      existingKeys.add(matchKey(p.id, match, true));
       touched.add(p.id);
       added++;
     }
@@ -588,10 +596,9 @@ function importRows(rows){
       const p = findTeamPoint(teamRaw);
       if(!p){ noTeam++; unmatched.add(teamRaw); queueUnmatchedOpponent(teamRaw, {date, category, score, result, siriusTeam:(typeof siriusTeam !== 'undefined' ? siriusTeam : '')}); continue; }
       const match = {date, category, score, result, siriusTeam, pkScore, matchType:'external', opponentTeamName:teamRaw};
-      const key = matchKey(p.id, match);
-      if(existingKeys.has(key)){ dup++; continue; }
+      if(hasMatchKey(existingKeys, p.id, match)){ dup++; continue; }
       addMatch(p.id, match, {silent:true});
-      existingKeys.add(key);
+      existingKeys.add(matchKey(p.id, match, true));
       touched.add(p.id);
       added++;
     }
