@@ -431,7 +431,7 @@ function queueUnmatchedOpponent(name,match){
    Unconfirmed locations are held instead of pinning a guessed location. */
 async function autoRegisterUnmatchedOpponentsBatch(){
   const pending=unmatchedOpponents.slice(); let registered=0,held=0;
-  const norm=s=>String(s||'').normalize('NFKC').replace(/[\\s\\u3000]+/g,'').toLowerCase();
+  const norm=s=>String(s||'').normalize('NFKC').replace(/[\s\u3000]+/g,'').toLowerCase();
   for(const item of pending){
     if(points.some(p=>norm(p.name)===norm(item.name))){unmatchedOpponents=unmatchedOpponents.filter(x=>x!==item);continue;}
     try{
