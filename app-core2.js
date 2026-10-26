@@ -395,7 +395,9 @@ function updateGuide(){
   button.innerHTML = '<span>⚽ 対戦情報をたたむ</span><span class="match-info-chevron">▲</span>';
   guideStrip.parentNode.insertBefore(button, guideStrip);
 
-  const media = window.matchMedia('(orientation: landscape) and (max-height: 600px)');
+  // スマホ縦向き・横向きの両方で、初期状態は対戦情報を折りたたむ。
+  // PCレイアウトでは従来どおり展開しておく。
+  const media = window.matchMedia('(max-width: 600px), (orientation: landscape) and (max-height: 600px)');
   const setCollapsed = collapsed => {
     document.body.classList.toggle('match-info-collapsed', collapsed);
     button.setAttribute('aria-expanded', String(!collapsed));
