@@ -1,7 +1,5 @@
 /* ---------------- Google Sheets (published CSV) live source ---------------- */
-// data タブ（元シート形式：日付・カテゴリ・自チームスコア・相手チームスコア・勝敗・FC名 等）
-const MATCHES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTEA-Qh6qyA6ODIbsqqYmWh7AfABhhpJbpXLi571XVoj86uHFJaWgDYt3vbVKOm9gO3Y9i5Vxjqesub/pub?gid=0&single=true&output=csv';
-// 全学年データ タブ（シンプル形式：team,date,category,score,result）
+// 正式な試合データ参照元：全学年データ タブ（team,date,category,score,result）
 const ALL_GRADES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTEA-Qh6qyA6ODIbsqqYmWh7AfABhhpJbpXLi571XVoj86uHFJaWgDYt3vbVKOm9gO3Y9i5Vxjqesub/pub?gid=664383665&single=true&output=csv';
 
 function parseCSV(text){
@@ -38,13 +36,11 @@ async function fetchAndImportCsv(url){
 
 async function loadMatchesFromSheet({silent=false} = {}){
   let ok = true;
-  if(MATCHES_CSV_URL){
-    try{ await fetchAndImportCsv(MATCHES_CSV_URL); }
-    catch(err){ console.error('data タブの取得に失敗', err); ok = false; }
-  }
-  if(ALL_GRADES_CSV_URL){
-    try{ await fetchAndImportCsv(ALL_GRADES_CSV_URL); }
-    catch(err){ console.error('全学年データ タブの取得に失敗', err); ok = false; }
+  try{
+    await fetchAndImportCsv(ALL_GRADES_CSV_URL);
+  }catch(err){
+    console.error('全学年データ タブの取得に失敗', err);
+    ok = false;
   }
   if(!ok && !silent) toast('Google Sheetsからの読み込みに失敗しました');
   return ok;
