@@ -404,7 +404,7 @@ async function autoRegisterUnmatchedOpponentsBatch(){
     if(points.some(p=>norm(p.name)===norm(item.name))){unmatchedOpponents=unmatchedOpponents.filter(x=>x!==item);continue;}
     try{
       const q=encodeURIComponent(item.name+' 愛知県 サッカー');
-      const response=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&country=Japan&q='+q,{headers:{'Accept':'application/json'}});
+      const response = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=jp&q=' + q,{headers:{'Accept':'application/json'}});
       if(!response.ok)throw new Error('Geocoding HTTP '+response.status);
       const results=await response.json(); const target=norm(item.name);
       const candidate=results.find(x=>norm(x.display_name||'').includes(target)&&Number.isFinite(Number(x.lat))&&Number.isFinite(Number(x.lon)));
