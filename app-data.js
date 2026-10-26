@@ -341,15 +341,28 @@ const TEAM_NAME_ALIASES = {
 };
 
 function findTeamPoint(name){
-  const clean = (name||'').trim();
-  let p = points.find(pp=>pp.name.trim()===clean);
+  const clean = String(name||'').trim();
+  let p = points.find(pp=>String(pp.name||'').trim()===clean);
   if(!p && TEAM_NAME_ALIASES[clean]){
     const aliasTarget = TEAM_NAME_ALIASES[clean];
-    p = points.find(pp=>pp.name.trim()===aliasTarget);
+    p = points.find(pp=>String(pp.name||'').trim()===aliasTarget);
   }
   if(!p){
     const norm = normalizeForMatch(clean);
     p = points.find(pp=>normalizeForMatch(pp.name)===norm);
+  }
+  // 地図上の地点は統合するが、戦績レコードには元のA/B等のチーム名を保持する。
+  // A/Bだけを末尾表記として除去し、除去後の名前が実在する地図マスターにある場合に限り統合。
+  // 例:「八事FC A」→「八事FC」。A/B地点自体がマスターにある場合は完全一致を優先する。
+  if(!p){
+    const base = clean.replace(/[\\s\\u3000]+[AB]$/i,'').trim();
+    if(base && base!==clean){
+      p = points.find(pp=>String(pp.name||'').trim()===base);
+      if(!p){
+        const baseNorm=normalizeForMatch(base);
+        p = points.find(pp=>normalizeForMatch(pp.name)===baseNorm);
+      }
+    }
   }
   return p;
 }
@@ -515,7 +528,7 @@ function importRows(rows){
       if(!p){ noTeam++; unmatched.add(teamRaw); queueUnmatchedOpponent(teamRaw, {date, category, score, result, siriusTeam:(typeof siriusTeam !== 'undefined' ? siriusTeam : '')}); continue; }
       const key = matchKey(p.id, {date, category, score, result});
       if(existingKeys.has(key)){ dup++; continue; }
-      addMatch(p.id, {date, category, score, result, place:iPlace>=0?String(r[iPlace]||'').trim():''}, {silent:true});
+      addMatch(p.id, {date, category, score, result, place:iPlace>=0?String(r[iPlace]||'').trim():'', opponentTeamName:teamRaw}, {silent:true});
       existingKeys.add(key);
       touched.add(p.id);
       added++;
@@ -574,7 +587,7 @@ function importRows(rows){
       }
       const p = findTeamPoint(teamRaw);
       if(!p){ noTeam++; unmatched.add(teamRaw); queueUnmatchedOpponent(teamRaw, {date, category, score, result, siriusTeam:(typeof siriusTeam !== 'undefined' ? siriusTeam : '')}); continue; }
-      const match = {date, category, score, result, siriusTeam, pkScore, matchType:'external'};
+      const match = {date, category, score, result, siriusTeam, pkScore, matchType:'external', opponentTeamName:teamRaw};
       const key = matchKey(p.id, match);
       if(existingKeys.has(key)){ dup++; continue; }
       addMatch(p.id, match, {silent:true});
