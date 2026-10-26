@@ -368,7 +368,7 @@ function findTeamPoint(name){
 }
 
 function matchKey(teamId, m){
-  return [teamId, m.date||'', m.category||'', m.score||'', m.result||'', m.siriusTeam||'', m.pkScore||''].join('|');
+  return [teamId, m.date||'', m.category||'', m.score||'', m.result||'', m.siriusTeam||'', m.pkScore||'', m.opponentTeamName||''].join('|');
 }
 
 function isSiriusTeamName(name){
