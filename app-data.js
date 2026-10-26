@@ -800,3 +800,112 @@ function downloadFile(filename, content, mime){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+
+/* ---------------- Read-only data audit (no writes, no geocoding) ---------------- */
+window.runSiriusReadOnlyAudit = async function(){
+  const report = {
+    generatedAt: new Date().toISOString(),
+    mode: 'READ_ONLY',
+    pointsCount: Array.isArray(points) ? points.length : null,
+    groundsCount: typeof grounds !== 'undefined' ? Object.keys(grounds).length : null,
+    unmatchedQueue: { uniqueNames: 0, sampleRecords: 0, samples: [] },
+    sheet: { totalRows: 0, teamRows: 0, matchedRows: 0, unmatchedRows: 0, uniqueTeamNames: 0, uniqueUnmatchedNames: 0, unmatchedNameSamples: [], venueRows: 0, unmatchedVenueRows: 0, uniqueUnmatchedVenues: 0, unmatchedVenueSamples: [] },
+    selectedFilter: {
+      season: typeof currentSeason !== 'undefined' ? currentSeason : null,
+      grade: typeof currentGrade !== 'undefined' ? currentGrade : null,
+      groundsWithAnyMatches: null,
+      groundsWithSelectedSeasonGradeMatches: null
+    }
+  };
+  try{
+    const rawQueue = JSON.parse(localStorage.getItem(UNMATCHED_OPPONENTS_STORAGE_KEY) || '[]');
+    const queue = Array.isArray(rawQueue) ? rawQueue : [];
+    report.unmatchedQueue.uniqueNames = queue.length;
+    report.unmatchedQueue.sampleRecords = queue.reduce((n,x)=>n+(Array.isArray(x.matches)?x.matches.length:0),0);
+    report.unmatchedQueue.samples = queue.slice(0,20).map(x=>({
+      name:String(x.name||''),
+      sampleCount:Array.isArray(x.matches)?x.matches.length:0,
+      examples:(Array.isArray(x.matches)?x.matches:[]).slice(0,2).map(m=>({date:m.date||'',category:m.category||'',score:m.score||''}))
+    }));
+  }catch(e){ report.unmatchedQueue.error = String(e); }
+
+  if(typeof grounds !== 'undefined'){
+    const glist = Object.values(grounds);
+    report.selectedFilter.groundsWithAnyMatches = glist.filter(g=>(g.matches||[]).length>0).length;
+    report.selectedFilter.groundsWithSelectedSeasonGradeMatches = glist.filter(g=>
+      typeof matchesForGrade === 'function' && matchesForGrade(g.matches).length>0
+    ).length;
+  }
+
+  const response = await fetch(ALL_GRADES_CSV_URL,{cache:'no-store'});
+  if(!response.ok) throw new Error('Google Sheets CSV HTTP '+response.status);
+  const rows = parseCSV(await response.text());
+  report.sheet.totalRows = Math.max(0,rows.length-1);
+  const norm = value => String(value||'').normalize('NFKC').replace(/[\s\u3000]+/g,'').toLowerCase();
+  const findHeader = (names, headers) => names.map(n=>headers.indexOf(n)).find(i=>i>=0);
+  const headerIndex = rows.findIndex(row =>
+    (row.includes('日付') && row.includes('FC名')) ||
+    ((row.includes('team') || row.includes('チーム名')) && (row.includes('date') || row.includes('日付')))
+  );
+  if(headerIndex<0) throw new Error('監査対象のヘッダー行を特定できません');
+  const header = rows[headerIndex].map(v=>String(v||'').trim());
+  const isLegacy = header.includes('日付') && header.includes('FC名');
+  const teamIndex = isLegacy ? header.indexOf('FC名') : findHeader(['team','チーム名'],header);
+  const dateIndex = isLegacy ? header.indexOf('日付') : findHeader(['date','日付'],header);
+  const categoryIndex = isLegacy ? header.indexOf('カテゴリ') : findHeader(['category','カテゴリ'],header);
+  const venueIndex = isLegacy ? header.indexOf('場所') : findHeader(['place','venue','ground','場所','会場','グラウンド'],header);
+  const teams = new Set(), unmatched = new Map(), venues = new Map();
+  for(let i=headerIndex+1;i<rows.length;i++){
+    const row=rows[i]||[];
+    if(row.every(v=>String(v||'').trim()==='')) continue;
+    const name=String(row[teamIndex]||'').trim();
+    if(!name) continue;
+    if(typeof isSiriusTeamName==='function' && isSiriusTeamName(name)) continue;
+    report.sheet.teamRows++;
+    teams.add(name);
+    if(typeof findTeamPoint==='function' && findTeamPoint(name)) report.sheet.matchedRows++;
+    else{
+      report.sheet.unmatchedRows++;
+      if(!unmatched.has(name)) unmatched.set(name,{name,count:0,examples:[]});
+      const item=unmatched.get(name); item.count++;
+      if(item.examples.length<3) item.examples.push({
+        date:dateIndex>=0?String(row[dateIndex]||''):'',
+        category:categoryIndex>=0?String(row[categoryIndex]||''):'',
+        rowNumber:i+1
+      });
+    }
+    if(venueIndex>=0){
+      const venue=String(row[venueIndex]||'').trim();
+      if(venue){
+        report.sheet.venueRows++;
+        const known=typeof grounds!=='undefined' && Object.keys(grounds).includes(venue);
+        if(!known){
+          if(!venues.has(venue)) venues.set(venue,{name:venue,count:0,examples:[]});
+          const item=venues.get(venue); item.count++;
+          if(item.examples.length<3) item.examples.push({date:dateIndex>=0?String(row[dateIndex]||''):'',team:name,rowNumber:i+1});
+        }
+      }
+    }
+  }
+  report.sheet.uniqueTeamNames=teams.size;
+  report.sheet.uniqueUnmatchedNames=unmatched.size;
+  report.sheet.unmatchedNameSamples=[...unmatched.values()].sort((a,b)=>b.count-a.count).slice(0,30);
+  report.sheet.unmatchedVenueRows=[...venues.values()].reduce((n,x)=>n+x.count,0);
+  report.sheet.uniqueUnmatchedVenues=venues.size;
+  report.sheet.unmatchedVenueSamples=[...venues.values()].sort((a,b)=>b.count-a.count).slice(0,30);
+  console.group('FC SIRIUS 読み取り専用監査');
+  console.log('概要',report);
+  console.table(report.sheet.unmatchedNameSamples);
+  console.table(report.sheet.unmatchedVenueSamples);
+  console.groupEnd();
+  try{
+    const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='sirius-readonly-audit-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    console.info('監査JSONをダウンロードしました。データ変更・登録・ジオコーディングは実行していません。');
+  }catch(e){ console.warn('監査JSONのダウンロードに失敗しました。概要はコンソールを確認してください。',e); }
+  return report;
+};
+console.info('読み取り専用監査を利用できます。ブラウザ開発者ツールのConsoleで runSiriusReadOnlyAudit() を実行してください。');
