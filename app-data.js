@@ -195,6 +195,22 @@ function focusUpcomingVenue(venue){
   }
 }
 
+function extractUpcomingOpponent(match){
+  if(!match || typeof match !== 'object') return '';
+  const direct = [match.opponent, match.opponentName, match.opponentTeam, match.opponentTeams, match.vs, match.versus]
+    .find(value => typeof value === 'string' && value.trim());
+  if(direct) return String(direct).trim().replace(/^VS[：:\s　]*/i, '').trim();
+
+  // 公式予定では対戦相手が「VS ...」行として掲載されることがある。
+  const sources = [match.title, match.name, match.description, match.team, match.event].filter(value => typeof value === 'string');
+  for(const source of sources){
+    const text = source.trim();
+    const vsMatch = text.match(/(?:^|[\s　・｜|])VS[：:\s　]+(.+)$/i);
+    if(vsMatch && vsMatch[1].trim()) return vsMatch[1].trim();
+  }
+  return '';
+}
+
 function renderSiriusUpcomingPanel(payload){
   siriusUpcomingPayload = payload || null;
   let panel = document.getElementById('siriusUpcomingPanel');
@@ -279,6 +295,10 @@ function renderSiriusUpcomingPanel(payload){
         else if(group.info.days === 1) body += '<span style="font-size:10px;background:#ffedd5;color:#9a3412;padding:2px 7px;border-radius:99px">明日</span>';
         body += '</div>';
         body += '<div style="font-size:13px;font-weight:700;margin-top:5px;line-height:1.4;overflow-wrap:anywhere">' + escapeHtml(m.title || '試合予定') + '</div>';
+        const opponentText = extractUpcomingOpponent(m);
+        if(opponentText){
+          body += '<div style="display:flex;align-items:flex-start;gap:6px;margin-top:5px;font-size:12px;line-height:1.4;overflow-wrap:anywhere;color:#334155"><strong style="flex-shrink:0;color:#0f766e">対戦相手</strong><span>' + escapeHtml(opponentText) + '</span></div>';
+        }
         const venueValue = [m.venue, m.groundName, m.ground, m.location, m.place, m.field, m.stadium, m.会場, m.グラウンド]
           .find(value => typeof value === 'string' && value.trim()) || '';
         const venueText = String(venueValue).trim();
