@@ -481,14 +481,6 @@ gradeSelectEl.addEventListener('change', (e)=>{
   toast(`表示学年: ${GRADE_LABELS[currentGrade]}`);
 });
 
-const otherGradeToggleEl = document.getElementById('otherGradeToggle');
-if(otherGradeToggleEl){
-  otherGradeToggleEl.addEventListener('change', e=>{
-    showOtherGrades=e.target.checked;
-    refreshAllForGrade();
-    toast(showOtherGrades ? '他学年の対戦情報を地図に追加表示' : '選択学年のみ表示');
-  });
-}
 
 /* ---------------- persistence ---------------- */
 async function loadPersisted(){
