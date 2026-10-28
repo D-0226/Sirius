@@ -587,6 +587,7 @@ function importRows(rows){
     const iSiriusTeam = col('siriusTeam');
     const iPkScore = col('pkScore');
     const iMatchType = col('matchType')>=0?col('matchType'):col('試合区分');
+    const iPlace = ['place','venue','ground','場所','会場','グラウンド'].map(k=>col(k)).find(i=>i>=0) ?? -1;
     let added=0, dup=0, noTeam=0, internalAdded=0, internalDup=0; const unmatched = new Set(); const touched = new Set();
     const existingKeys = new Set();
     points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m, !!m.opponentTeamName))));
@@ -603,6 +604,7 @@ function importRows(rows){
       const siriusTeam = String(iSiriusTeam>=0 && r[iSiriusTeam]!=null?r[iSiriusTeam]:'').trim();
       const pkScore = String(iPkScore>=0 && r[iPkScore]!=null?r[iPkScore]:'').trim();
       const matchTypeRaw = String(iMatchType>=0 && r[iMatchType]!=null?r[iMatchType]:'').trim().toLowerCase();
+      const place = String(iPlace>=0 && r[iPlace]!=null?r[iPlace]:'').trim();
       const isInternal = matchTypeRaw==='internal' || matchTypeRaw==='チーム内' ||
         (isSiriusTeamName(teamRaw) && isSiriusTeamName(siriusTeam));
       if(isInternal){
@@ -616,8 +618,14 @@ function importRows(rows){
       }
       const p = findTeamPoint(teamRaw);
       if(!p){ noTeam++; unmatched.add(teamRaw); queueUnmatchedOpponent(teamRaw, {date, category, score, result, siriusTeam:(typeof siriusTeam !== 'undefined' ? siriusTeam : '')}); continue; }
-      const match = {date, category, score, result, siriusTeam, pkScore, matchType:'external', opponentTeamName:teamRaw};
-      if(hasMatchKey(existingKeys, p.id, match)){ dup++; continue; }
+      const match = {date, category, score, result, siriusTeam, pkScore, matchType:'external', opponentTeamName:teamRaw, place};
+      if(place) upsertGroundMatch(place,{date,category,opponent:teamRaw,score,result});
+      if(hasMatchKey(existingKeys, p.id, match)){
+        // 既存戦績に会場列が後から追加された場合、会場名だけを補完する。
+        const existing=(p.matches||[]).find(m=>matchKey(p.id,m,!!m.opponentTeamName)===matchKey(p.id,match,true));
+        if(existing && place && !existing.place) existing.place=place;
+        dup++; continue;
+      }
       addMatch(p.id, match, {silent:true});
       existingKeys.add(matchKey(p.id, match, true));
       touched.add(p.id);
