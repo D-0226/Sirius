@@ -500,6 +500,53 @@ function rebuildGroundMatchLinksAndFindUnknowns(){
     });
   });
 }
+async function discoverUnregisteredGroundsFromPublishedCsv(){
+  if(typeof ALL_GRADES_CSV_URL==='undefined' || typeof parseCSV!=='function') return {ok:false,reason:'試合CSV設定がありません'};
+  try{
+    const response=await fetch(ALL_GRADES_CSV_URL,{cache:'no-store'});
+    if(!response.ok) throw new Error('CSV HTTP '+response.status);
+    const rows=parseCSV(await response.text());
+    const headerIndex=rows.findIndex(row=>
+      (row.includes('日付')&&row.includes('FC名')) ||
+      ((row.includes('team')||row.includes('チーム名'))&&(row.includes('date')||row.includes('日付')))
+    );
+    if(headerIndex<0) throw new Error('会場検出用のヘッダー行が見つかりません');
+    const header=rows[headerIndex].map(v=>String(v||'').trim());
+    const index=(names)=>names.map(name=>header.indexOf(name)).find(i=>i>=0)??-1;
+    const venueIndex=header.includes('日付')&&header.includes('FC名')
+      ? header.indexOf('場所')
+      : index(['place','venue','ground','場所','会場','グラウンド']);
+    const teamIndex=header.includes('日付')&&header.includes('FC名')
+      ? header.indexOf('FC名')
+      : index(['team','チーム名']);
+    const dateIndex=header.includes('日付')&&header.includes('FC名')?header.indexOf('日付'):index(['date','日付']);
+    const categoryIndex=header.includes('日付')&&header.includes('FC名')?header.indexOf('カテゴリ'):index(['category','カテゴリ']);
+    if(venueIndex<0){
+      console.warn('未登録会場の自動検出: 試合CSVに会場列がありません。ヘッダー:',header);
+      return {ok:true,venueColumn:false,rows:Math.max(0,rows.length-headerIndex-1),uniqueVenues:0,unknown:0};
+    }
+    const norm=value=>String(value||'').normalize('NFKC').replace(/[\\s\\u3000]+/g,'').toLowerCase();
+    const masterNames=new Set(Object.keys(grounds).map(norm));
+    let scanned=0;
+    for(let i=headerIndex+1;i<rows.length;i++){
+      const row=rows[i]||[];
+      const name=String(row[venueIndex]||'').trim();
+      if(!name) continue;
+      scanned++;
+      if(masterNames.has(norm(name))) continue;
+      const candidate=unregisteredGroundCandidates[name]||(unregisteredGroundCandidates[name]={name,matches:[]});
+      const sample={date:dateIndex>=0?String(row[dateIndex]||''):'',category:categoryIndex>=0?String(row[categoryIndex]||''):'',opponent:teamIndex>=0?String(row[teamIndex]||''):'',score:'',result:''};
+      if(!candidate.matches.some(m=>m.date===sample.date&&m.category===sample.category&&m.opponent===sample.opponent)) candidate.matches.push(sample);
+    }
+    const result={ok:true,venueColumn:true,venueRows:scanned,uniqueVenues:new Set(rows.slice(headerIndex+1).map(row=>String((row||[])[venueIndex]||'').trim()).filter(Boolean)).size,unknown:Object.keys(unregisteredGroundCandidates).length};
+    console.info('公開試合CSVからの未登録会場検出:',result);
+    return result;
+  }catch(error){
+    console.warn('公開試合CSVからの未登録会場検出に失敗:',error);
+    return {ok:false,reason:String(error)};
+  }
+}
+
 function provisionalGroundIcon(){
   return L.divIcon({className:'',html:'<div style="width:27px;height:27px;border-radius:50%;background:#D97706;border:2px dashed #fff;box-shadow:0 1px 4px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:14px;">?</div>',iconSize:[27,27],iconAnchor:[13,13]});
 }
@@ -508,7 +555,7 @@ async function plotUnregisteredGroundCandidates(maxSearches=15){
   provisionalGroundMarkers={};
   const candidates=Object.values(unregisteredGroundCandidates).filter(x=>!grounds[x.name]).sort((a,b)=>(b.matches||[]).length-(a.matches||[]).length).slice(0,maxSearches);
   if(!candidates.length){
-    console.info('未登録会場: 0件（試合データの会場名はマスタ登録済み）');
+    console.info('未登録会場: 0件（会場列のある試合データを走査した結果、未登録会場がありません）');
     return;
   }
   console.info('未登録会場候補:',candidates.map(x=>({name:x.name,matches:x.matches.length})));
