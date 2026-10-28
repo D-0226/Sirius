@@ -266,6 +266,8 @@ const GROUND_VERIFIED_INFO = {
 
 let grounds = {};        // name -> {name, address, lat, lng, accuracy, mapUrl, sourceUrl, updatedAt, matches:[]}
 let groundMarkers = {};  // name -> leaflet marker
+let unregisteredGroundCandidates = {}; // 試合データにはあるが、会場マスタにない会場名
+let provisionalGroundMarkers = {};    // 位置候補を地図上で確認するための仮ピン
 let groundsVisible = true;
 const GROUND_COLOR = '#1B4B66'; // 淡色地図の背景でも視認しやすい濃紺
 
@@ -468,11 +470,80 @@ function renderGroundMarker(g){
 
 function upsertGroundMatch(placeName, info){
   const g = grounds[placeName];
-  if(!g) return false;
+  if(!g){
+    const name=String(placeName||'').trim();
+    if(name){
+      const item=unregisteredGroundCandidates[name]||(unregisteredGroundCandidates[name]={name,matches:[]});
+      if(info && !item.matches.some(m=>m.date===info.date&&m.opponent===info.opponent&&m.score===info.score)) item.matches.push(info);
+    }
+    return false;
+  }
   const key = [info.date, info.opponent, info.score, info.result].join('|');
   if(g.matches.some(m => [m.date,m.opponent,m.score,m.result].join('|') === key)) return true;
   g.matches.push(info);
   return true;
+}
+
+
+/* ---------------- 未登録会場の検出と仮プロット ---------------- */
+// 座標はOSM/Nominatimの検索候補。マスタには書き込まず、確認用の仮ピンとしてのみ表示する。
+function rebuildGroundMatchLinksAndFindUnknowns(){
+  unregisteredGroundCandidates = {};
+  Object.values(grounds).forEach(g=>{ g.matches=[]; });
+  (Array.isArray(points)?points:[]).forEach(p=>{
+    (Array.isArray(p.matches)?p.matches:[]).forEach(m=>{
+      const place=String(m.place||m.venue||m.ground||'').trim();
+      if(!place) return;
+      const info={date:m.date||'',category:m.category||'',opponent:p.name||'',score:m.score||'',result:m.result||''};
+      if(grounds[place]) upsertGroundMatch(place,info);
+      else upsertGroundMatch(place,info);
+    });
+  });
+}
+function provisionalGroundIcon(){
+  return L.divIcon({className:'',html:'<div style="width:27px;height:27px;border-radius:50%;background:#D97706;border:2px dashed #fff;box-shadow:0 1px 4px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:14px;">?</div>',iconSize:[27,27],iconAnchor:[13,13]});
+}
+async function plotUnregisteredGroundCandidates(maxSearches=15){
+  Object.values(provisionalGroundMarkers).forEach(marker=>map.removeLayer(marker));
+  provisionalGroundMarkers={};
+  const candidates=Object.values(unregisteredGroundCandidates).filter(x=>!grounds[x.name]).slice(0,maxSearches);
+  if(!candidates.length){
+    console.info('未登録会場: 0件（試合データの会場名はマスタ登録済み）');
+    return;
+  }
+  console.info('未登録会場候補:',candidates.map(x=>({name:x.name,matches:x.matches.length})));
+  let plotted=0, unresolved=[];
+  for(const item of candidates){
+    try{
+      const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&country=Japan&q='+encodeURIComponent(item.name);
+      const response=await fetch(url,{headers:{Accept:'application/json'},cache:'no-store'});
+      if(!response.ok) throw new Error('HTTP '+response.status);
+      const results=await response.json();
+      const result=(Array.isArray(results)?results:[]).find(x=>{
+        const cls=String(x.class||'').toLowerCase(), type=String(x.type||'').toLowerCase();
+        return cls==='leisure' || cls==='sport' || cls==='amenity' && /school|university|college|park|sports_centre|stadium/.test(type) || /pitch|sports_centre|stadium|school|park|ground/.test(type);
+      });
+      if(!result){unresolved.push(item.name);continue;}
+      const lat=Number(result.lat),lng=Number(result.lon);
+      if(!Number.isFinite(lat)||!Number.isFinite(lng)){unresolved.push(item.name);continue;}
+      const marker=L.marker([lat,lng],{icon:provisionalGroundIcon(),riseOnHover:true});
+      const mapSearch='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(item.name);
+      marker.bindPopup('<b>？ 未登録会場（位置候補）</b><div style="margin-top:5px;font-weight:600;">'+escapeHtml(item.name)+'</div><div style="font-size:11px;margin-top:5px;">試合データでの登場 '+item.matches.length+'件</div><div style="font-size:11px;color:#92400E;margin-top:5px;">地図検索の候補です。正しい会場か確認してから、会場マスタへ登録してください。</div><div style="font-size:11px;margin-top:6px;">候補: '+escapeHtml(result.display_name||'')+'</div><a href="'+mapSearch+'" target="_blank" rel="noopener">Googleマップで確認</a>',{maxWidth:320});
+      marker.bindTooltip(item.name+'［未登録・位置候補］',{permanent:true,direction:'top',offset:[0,-10],className:'name-label'});
+      if(groundsVisible) marker.addTo(map);
+      provisionalGroundMarkers[item.name]=marker;
+      plotted++;
+    }catch(error){
+      unresolved.push(item.name);
+      console.warn('未登録会場の位置候補取得に失敗:',item.name,error);
+    }
+    // Nominatimの公開サービスに負荷をかけないよう、検索間隔を空ける。
+    await new Promise(resolve=>setTimeout(resolve,1100));
+  }
+  console.info('未登録会場の仮プロット結果:',{detected:candidates.length,plotted,unresolved,limit:maxSearches});
+  if(Object.keys(unregisteredGroundCandidates).length>maxSearches){
+    console.warn('未検索の未登録会場があります。検出件数:',Object.keys(unregisteredGroundCandidates).length,'今回検索上限:',maxSearches);
+  }
 }
 
 function refreshGroundMarkers(){
