@@ -500,6 +500,25 @@ function rebuildGroundMatchLinksAndFindUnknowns(){
     });
   });
 }
+function addUpcomingGroundCandidates(matches){
+  const normalize=value=>String(value||'').normalize('NFKC').replace(/[\\s\\u3000]+/g,'').toLowerCase();
+  const knownNames=Object.keys(grounds).map(normalize);
+  let scanned=0;
+  (Array.isArray(matches)?matches:[]).forEach(match=>{
+    const venue=[match.venue,match.groundName,match.ground,match.location,match.place,match.field,match.stadium,match.会場,match.グラウンド]
+      .find(value=>typeof value==='string'&&value.trim());
+    const name=String(venue||'').trim();
+    if(!name) return;
+    scanned++;
+    if(knownNames.some(known=>known===normalize(name)||known.includes(normalize(name))||normalize(name).includes(known))) return;
+    const item=unregisteredGroundCandidates[name]||(unregisteredGroundCandidates[name]={name,matches:[]});
+    const info={date:match.date||'',category:match.category||'',opponent:match.title||match.name||'',score:'',result:''};
+    if(!item.matches.some(m=>m.date===info.date&&m.category===info.category&&m.opponent===info.opponent)) item.matches.push(info);
+  });
+  console.info('公式試合予定からの未登録会場検出:',{scheduleRows:(Array.isArray(matches)?matches.length:0),venueRows:scanned,unknown:Object.keys(unregisteredGroundCandidates).length});
+  return scanned;
+}
+
 async function discoverUnregisteredGroundsFromPublishedCsv(){
   if(typeof ALL_GRADES_CSV_URL==='undefined' || typeof parseCSV!=='function') return {ok:false,reason:'試合CSV設定がありません'};
   try{
