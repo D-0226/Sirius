@@ -506,7 +506,7 @@ function provisionalGroundIcon(){
 async function plotUnregisteredGroundCandidates(maxSearches=15){
   Object.values(provisionalGroundMarkers).forEach(marker=>map.removeLayer(marker));
   provisionalGroundMarkers={};
-  const candidates=Object.values(unregisteredGroundCandidates).filter(x=>!grounds[x.name]).slice(0,maxSearches);
+  const candidates=Object.values(unregisteredGroundCandidates).filter(x=>!grounds[x.name]).sort((a,b)=>(b.matches||[]).length-(a.matches||[]).length).slice(0,maxSearches);
   if(!candidates.length){
     console.info('未登録会場: 0件（試合データの会場名はマスタ登録済み）');
     return;
@@ -515,7 +515,7 @@ async function plotUnregisteredGroundCandidates(maxSearches=15){
   let plotted=0, unresolved=[];
   for(const item of candidates){
     try{
-      const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&country=Japan&q='+encodeURIComponent(item.name);
+      const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=jp&q='+encodeURIComponent(item.name);
       const response=await fetch(url,{headers:{Accept:'application/json'},cache:'no-store'});
       if(!response.ok) throw new Error('HTTP '+response.status);
       const results=await response.json();
