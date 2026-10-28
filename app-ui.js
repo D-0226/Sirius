@@ -263,6 +263,8 @@ function renderInitialMarkersInBatches(list, batchSize=24){
     if(groundsOk){
       rebuildGroundMatchLinksAndFindUnknowns();
       refreshGroundMarkers();
+      // 予定APIがグラウンド読込より先に完了していても、ここで予定会場を取り込む。
+      if(typeof addUpcomingGroundCandidates==='function' && Array.isArray(siriusUpcomingMatches)) addUpcomingGroundCandidates(siriusUpcomingMatches);
       // 試合オブジェクトに会場が保持されていない場合に備え、公開CSV自体からも会場列を走査する。
       const venueScan = await discoverUnregisteredGroundsFromPublishedCsv();
       if(venueScan.ok && venueScan.venueColumn){
