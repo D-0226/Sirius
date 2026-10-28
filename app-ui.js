@@ -260,7 +260,12 @@ function renderInitialMarkersInBatches(list, batchSize=24){
       loadMatchesFromSheet({silent:true}),
       loadGroundMemosFromSheet(),
     ]);
-    if(groundsOk) refreshGroundMarkers();
+    if(groundsOk){
+      rebuildGroundMatchLinksAndFindUnknowns();
+      refreshGroundMarkers();
+      // 未登録会場は外部検索の位置候補を仮ピン表示する。マスタへの自動書き込みは行わない。
+      void plotUnregisteredGroundCandidates(15);
+    }
 
     const hasImportedMatches = points.some(p=>(p.matches||[]).length>0);
     if((!liveOk || !hasImportedMatches) && points.every(p=>(p.matches||[]).length===0)){
