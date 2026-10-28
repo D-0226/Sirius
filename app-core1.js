@@ -294,13 +294,21 @@ async function loadGroundsFromSheet(){
     if(iGround < 0 || iLat < 0 || iLng < 0) throw new Error('ground / lat / lng が不足しています');
 
     grounds = {};
+    const skippedGroundRows = [];
+    const duplicateGroundNames = [];
     for(let i=headerIdx+1;i<rows.length;i++){
       const r=rows[i]||[];
       const name=String(r[iGround]||'').trim();
       if(!name) continue;
-      const lat=parseFloat(String(r[iLat]??'').trim());
-      const lng=parseFloat(String(r[iLng]??'').trim());
-      if(!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const rawLat=String(r[iLat]??'').trim();
+      const rawLng=String(r[iLng]??'').trim();
+      const lat=parseFloat(rawLat);
+      const lng=parseFloat(rawLng);
+      if(!Number.isFinite(lat) || !Number.isFinite(lng)){
+        skippedGroundRows.push({name,lat:rawLat,lng:rawLng,row:i+1});
+        continue;
+      }
+      if(grounds[name]) duplicateGroundNames.push({name,row:i+1});
       const verified = GROUND_VERIFIED_INFO[name] || {};
       grounds[name] = {
         name,
@@ -317,6 +325,8 @@ async function loadGroundsFromSheet(){
       };
     }
     console.log(`grounds loaded: ${Object.keys(grounds).length}`);
+    if(skippedGroundRows.length) console.warn('グラウンド地図未プロット（緯度・経度未設定/不正）:', skippedGroundRows);
+    if(duplicateGroundNames.length) console.warn('グラウンドマスタの重複名:', duplicateGroundNames);
     return true;  }catch(err){
     console.error('grounds sheet fetch failed', err);
     toast('グラウンド情報の取得に失敗しました');
