@@ -79,6 +79,10 @@ function loadSiriusUpcomingMatches(){
       if(payload && payload.ok && Array.isArray(payload.matches)){
         siriusUpcomingMatches = payload.matches;
         renderSiriusUpcomingPanel(payload);
+        if(typeof addUpcomingGroundCandidates==='function' && typeof grounds!=='undefined' && Object.keys(grounds).length){
+          addUpcomingGroundCandidates(siriusUpcomingMatches);
+          void plotUnregisteredGroundCandidates(15);
+        }
         resolve(true);
       }else{
         renderSiriusUpcomingPanel({ok:false,error:(payload&&payload.error)||'予定を取得できませんでした'});
