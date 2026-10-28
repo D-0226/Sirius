@@ -289,7 +289,8 @@ function renderSiriusUpcomingPanel(payload){
         const category = normalizeUpcomingGrades([m.category,m.title,m.team,m.name,m.description].filter(Boolean).join(' ')).includes(normalizeUpcomingGrade(selectedGrade)) ? selectedGrade : (m.category || selectedGrade);
         body += '<article style="padding:9px 10px;margin-bottom:6px;border:1px solid #e2e8f0;border-radius:10px;background:' + (group.info.days >= 0 && group.info.days <= 2 ? '#fffaf0' : '#fff') + ';border-left:3px solid ' + (group.info.days === 0 ? '#dc2626' : (group.info.days >= 0 && group.info.days <= 2 ? '#d97706' : '#cbd5e1')) + '">';
         body += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
-        if(m.time) body += '<strong style="font-size:12px;color:#334155">' + escapeHtml(m.time) + '</strong>';
+        if(m.time) body += '<strong style="font-size:12px;color:#334155">集合 ' + escapeHtml(m.time) + '</strong>';
+        if(m.endTime) body += '<strong style="font-size:12px;color:#0f766e">終了予定 ' + escapeHtml(m.endTime) + '</strong>';
         body += '<span style="font-size:10px;background:#e0f2fe;color:#075985;padding:2px 7px;border-radius:99px">' + escapeHtml(category) + '</span>';
         if(group.info.days === 0) body += '<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:2px 7px;border-radius:99px">今日</span>';
         else if(group.info.days === 1) body += '<span style="font-size:10px;background:#ffedd5;color:#9a3412;padding:2px 7px;border-radius:99px">明日</span>';
