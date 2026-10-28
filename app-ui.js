@@ -263,8 +263,14 @@ function renderInitialMarkersInBatches(list, batchSize=24){
     if(groundsOk){
       rebuildGroundMatchLinksAndFindUnknowns();
       refreshGroundMarkers();
-      // 未登録会場は外部検索の位置候補を仮ピン表示する。マスタへの自動書き込みは行わない。
-      void plotUnregisteredGroundCandidates(15);
+      // 試合オブジェクトに会場が保持されていない場合に備え、公開CSV自体からも会場列を走査する。
+      const venueScan = await discoverUnregisteredGroundsFromPublishedCsv();
+      if(venueScan.ok && venueScan.venueColumn){
+        // CSV走査で見つかった未登録会場も仮ピン検索の対象にする。
+        void plotUnregisteredGroundCandidates(15);
+      }else if(venueScan.ok){
+        console.warn('未登録会場の位置検索は保留しました。公開CSVに会場列がないため、会場情報の取得元を確認してください。');
+      }
     }
 
     const hasImportedMatches = points.some(p=>(p.matches||[]).length>0);
