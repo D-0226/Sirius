@@ -133,6 +133,7 @@ document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=
     const labelsBtn=document.getElementById('btnToggleLabels');
     if(labelsBtn) labelsBtn.classList.toggle('active', document.body.classList.contains('ground-labels-visible'));
     applyGroundGradeFilter();
+    Object.values(provisionalGroundMarkers||{}).forEach(marker=>{if(!map.hasLayer(marker)) marker.addTo(map);});
     scheduleDeclutter();
     scheduleGroundCenter();
     const visibleCount=Object.values(grounds).filter(g=>groundHasCurrentGradeMatches(g) || (showOtherGrades && groundHasOtherGradeMatches(g))).length;
@@ -140,6 +141,7 @@ document.getElementById('btnToggleGroundsVisible').addEventListener('click', ()=
   }else{
     document.body.classList.remove('ground-mode');
     applyGroundGradeFilter();
+    Object.values(provisionalGroundMarkers||{}).forEach(marker=>{if(map.hasLayer(marker)) map.removeLayer(marker);});
     scheduleDeclutter();
     toast('会場表示を解除しました');
   }
