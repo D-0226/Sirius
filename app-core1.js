@@ -541,6 +541,7 @@ async function plotUnregisteredGroundCandidates(maxSearches=15){
     await new Promise(resolve=>setTimeout(resolve,1100));
   }
   console.info('未登録会場の仮プロット結果:',{detected:candidates.length,plotted,unresolved,limit:maxSearches});
+  if(plotted && typeof scheduleGroundCenter==='function') scheduleGroundCenter();
   if(Object.keys(unregisteredGroundCandidates).length>maxSearches){
     console.warn('未検索の未登録会場があります。検出件数:',Object.keys(unregisteredGroundCandidates).length,'今回検索上限:',maxSearches);
   }
