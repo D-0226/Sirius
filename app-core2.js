@@ -115,6 +115,7 @@ document.querySelectorAll('[data-collapse-toggle]').forEach(el=>{
 function centerVisibleGrounds(){
   if(!groundsVisible) return;
   const visible=Object.values(grounds).filter(g=>{const m=groundMarkers[g.name];return m&&map.hasLayer(m);}).map(g=>[g.lat,g.lng]);
+  Object.values(provisionalGroundMarkers||{}).forEach(marker=>{if(map.hasLayer(marker)){const ll=marker.getLatLng();visible.push([ll.lat,ll.lng]);}});
   if(!visible.length) return;
   const isMobile=window.matchMedia('(max-width:600px)').matches;
   map.invalidateSize({animate:false});
