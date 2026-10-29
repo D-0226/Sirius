@@ -88,7 +88,7 @@ function loadSiriusGroundCatalog({force=false} = {}){
       if(payload && payload.ok && Array.isArray(payload.grounds)){
         siriusGroundCatalog = payload.grounds;
         siriusGroundCatalogLoaded = true;
-        console.info('会場カタログ取得完了:', {count:payload.count || payload.grounds.length, coordinateCount:payload.grounds.filter(g=>Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lng))).length});
+        console.info('会場カタログ取得完了:', {count:payload.count || payload.grounds.length, coordinateCount:payload.grounds.filter(g=>g.lat!==null && g.lat!=='' && g.lng!==null && g.lng!=='' && Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lng))).length});
         finish(true);
       }else{
         console.warn('会場カタログAPI応答が不正です', payload && payload.error);
@@ -254,7 +254,7 @@ function focusUpcomingVenue(venue){
   const catalogMatch = Array.isArray(siriusGroundCatalog) ? siriusGroundCatalog.find(g=>{
     const name=normalize(g.ground);
     return name && (name===target || name.includes(target) || target.includes(name)) &&
-      Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lng));
+      g.lat!==null && g.lat!=='' && g.lng!==null && g.lng!=='' && Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lng));
   }) : null;
   const provisionalName = catalogMatch && Object.keys(provisionalGroundMarkers || {}).find(name=>normalize(name)===normalize(catalogMatch.ground));
   const provisionalMarker = provisionalName && provisionalGroundMarkers[provisionalName];
