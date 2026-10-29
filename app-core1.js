@@ -608,7 +608,7 @@ async function plotUnregisteredGroundCandidates(maxSearches=15){
     const entry=matches.length===1 ? matches[0] : null;
     const lat=entry ? Number(entry.lat) : NaN;
     const lng=entry ? Number(entry.lng) : NaN;
-    if(!entry || !Number.isFinite(lat) || !Number.isFinite(lng)){
+    if(!entry || entry.lat===null || entry.lat==='' || entry.lng===null || entry.lng==='' || !Number.isFinite(lat) || !Number.isFinite(lng)){
       unresolved.push(item.name);
       continue;
     }
