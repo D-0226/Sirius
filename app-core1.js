@@ -570,7 +570,8 @@ function provisionalGroundIcon(){
   return L.divIcon({className:'',html:'<div style="width:27px;height:27px;border-radius:50%;background:#D97706;border:2px dashed #fff;box-shadow:0 1px 4px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:14px;">?</div>',iconSize:[27,27],iconAnchor:[13,13]});
 }
 async function plotUnregisteredGroundCandidates(maxSearches=15){
-  // 既存の仮ピンを一旦クリアし、GASの会場カタログに登録された座標だけを使用する。
+  // 未登録会場は、住所等を照合して人が「確認済み」にした座標だけを地図表示する。
+  // 「要確認」「未調査」「未取得」等の座標は仮ピンにも使用しない。
   Object.values(provisionalGroundMarkers).forEach(marker=>map.removeLayer(marker));
   provisionalGroundMarkers={};
 
@@ -588,11 +589,11 @@ async function plotUnregisteredGroundCandidates(maxSearches=15){
     return;
   }
   if(!catalog.length){
-    console.warn('会場カタログが取得できないため、未登録会場の仮ピン表示を保留しました。Nominatimへの都度検索は行いません。');
+    console.warn('会場カタログが取得できないため、未登録会場の表示を保留しました。');
     return;
   }
 
-  let plotted=0, unresolved=[];
+  let plotted=0, unresolved=[], unverified=[];
   const limit=Math.max(0,Number(maxSearches)||0);
   const selected=candidates.slice(0,limit);
   for(const item of selected){
@@ -606,24 +607,31 @@ async function plotUnregisteredGroundCandidates(maxSearches=15){
       if(fuzzy.length===1) matches=fuzzy;
     }
     const entry=matches.length===1 ? matches[0] : null;
+    const status=String(entry && entry.geoStatus || '未調査').trim();
     const lat=entry ? Number(entry.lat) : NaN;
     const lng=entry ? Number(entry.lng) : NaN;
     if(!entry || entry.lat===null || entry.lat==='' || entry.lng===null || entry.lng==='' || !Number.isFinite(lat) || !Number.isFinite(lng)){
       unresolved.push(item.name);
       continue;
     }
+    // 人が座標を確認して「確認済み」と明示した行だけを表示対象にする。
+    if(status!=='確認済み'){
+      unverified.push({name:item.name,status});
+      continue;
+    }
     const marker=L.marker([lat,lng],{icon:provisionalGroundIcon(),riseOnHover:true});
-    const mapSearch='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(item.name);
+    const address=String(entry.address||'').trim();
+    const mapQuery=address || item.name;
+    const mapSearch='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(mapQuery);
     const sourceUrls=Array.isArray(entry.sourceUrls) ? entry.sourceUrls : [];
     const sourceLinks=sourceUrls.slice(0,3).map(url=>'<div style="font-size:10px;margin-top:3px"><a href="'+escapeHtml(url)+'" target="_blank" rel="noopener noreferrer">公式出典ページ ↗</a></div>').join('');
-    const geoStatus=String(entry.geoStatus||'未確認');
-    marker.bindPopup('<b>？ 会場カタログ（座標未確認）</b><div style="margin-top:5px;font-weight:600;">'+escapeHtml(item.name)+'</div><div style="font-size:11px;margin-top:5px;">試合データでの登場 '+item.matches.length+'件</div><div style="font-size:11px;color:#92400E;margin-top:5px;">座標状態：'+escapeHtml(geoStatus)+'。正しい場所か確認してから正式な会場マスタへ登録してください。</div><div style="font-size:11px;margin-top:4px;">出典登録 '+Number(entry.sourceCount||0)+'件</div>'+sourceLinks+'<div style="margin-top:6px"><a href="'+mapSearch+'" target="_blank" rel="noopener noreferrer">Googleマップで確認</a></div>',{maxWidth:320});
-    marker.bindTooltip(item.name+'［会場カタログ・要確認］',{permanent:true,direction:'top',offset:[0,-10],className:'name-label'});
+    marker.bindPopup('<b>✓ 会場カタログ（座標確認済み）</b><div style="margin-top:5px;font-weight:600;">'+escapeHtml(item.name)+'</div>'+(address?'<div style="font-size:11px;margin-top:4px;">住所：'+escapeHtml(address)+'</div>':'')+'<div style="font-size:11px;margin-top:5px;">試合データでの登場 '+item.matches.length+'件</div><div style="font-size:11px;color:#166534;margin-top:5px;">座標状態：確認済み</div><div style="font-size:11px;margin-top:4px;">出典登録 '+Number(entry.sourceCount||0)+'件</div>'+sourceLinks+'<div style="margin-top:6px"><a href="'+mapSearch+'" target="_blank" rel="noopener noreferrer">住所をGoogleマップで確認</a></div>',{maxWidth:320});
+    marker.bindTooltip(item.name+'［座標確認済み］',{permanent:true,direction:'top',offset:[0,-10],className:'name-label'});
     if(groundsVisible) marker.addTo(map);
     provisionalGroundMarkers[item.name]=marker;
     plotted++;
   }
-  console.info('会場カタログによる未登録会場の仮プロット結果:',{detected:candidates.length,checked:selected.length,plotted,unresolved,limit});
+  console.info('会場カタログによる未登録会場の表示結果:',{detected:candidates.length,checked:selected.length,plotted,unresolved,unverified,limit});
   if(plotted && typeof scheduleGroundCenter==='function') scheduleGroundCenter();
   if(candidates.length>limit) console.info('今回の表示対象外の未登録会場:',candidates.length-limit);
 }
