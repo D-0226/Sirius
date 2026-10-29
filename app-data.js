@@ -51,6 +51,61 @@ async function loadMatchesFromSheet({silent=false} = {}){
 /* ---------------- FC SIRIUS upcoming fixtures (Google Apps Script JSONP) ---------------- */
 // Code.gsをウェブアプリとしてデプロイし、ここに /exec URLを設定してください。
 const SIRIUS_UPCOMING_API_URL = 'https://script.google.com/macros/s/AKfycbwo1C-XsWwk8l1JRMe0yyWR9jQzVyCoURTiEjzKKCuLM9O775H9vWouCRKoZQNINnfWhA/exec';
+const SIRIUS_GROUND_CATALOG_API_URL = SIRIUS_UPCOMING_API_URL;
+let siriusGroundCatalog = [];
+let siriusGroundCatalogLoaded = false;
+let siriusGroundCatalogLoadPromise = null;
+
+// 会場カタログはGASのJSONP APIから取得。取得失敗時も既存の会場マスタ表示は継続する。
+function loadSiriusGroundCatalog({force=false} = {}){
+  if(siriusGroundCatalogLoaded && !force) return Promise.resolve(true);
+  if(siriusGroundCatalogLoadPromise && !force) return siriusGroundCatalogLoadPromise;
+  if(!SIRIUS_GROUND_CATALOG_API_URL || SIRIUS_GROUND_CATALOG_API_URL.indexOf('/exec') < 0){
+    console.warn('会場カタログAPI URLが未設定です');
+    return Promise.resolve(false);
+  }
+  siriusGroundCatalogLoadPromise = new Promise(resolve=>{
+    const callbackName = '__siriusGroundCatalogCallback_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+    const script = document.createElement('script');
+    let finished = false;
+    const cleanup = ()=>{
+      if(script.parentNode) script.parentNode.removeChild(script);
+      try{ delete window[callbackName]; }catch(_){ window[callbackName] = undefined; }
+    };
+    const finish = ok=>{
+      if(finished) return;
+      finished = true;
+      clearTimeout(timer);
+      cleanup();
+      siriusGroundCatalogLoadPromise = null;
+      resolve(ok);
+    };
+    const timer = setTimeout(()=>{
+      console.warn('会場カタログAPIがタイムアウトしました');
+      finish(false);
+    },20000);
+    window[callbackName] = payload=>{
+      if(payload && payload.ok && Array.isArray(payload.grounds)){
+        siriusGroundCatalog = payload.grounds;
+        siriusGroundCatalogLoaded = true;
+        console.info('会場カタログ取得完了:', {count:payload.count || payload.grounds.length, coordinateCount:payload.grounds.filter(g=>Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lng))).length});
+        finish(true);
+      }else{
+        console.warn('会場カタログAPI応答が不正です', payload && payload.error);
+        finish(false);
+      }
+    };
+    script.onerror = ()=>{
+      console.warn('会場カタログAPIに接続できませんでした');
+      finish(false);
+    };
+    script.src = SIRIUS_GROUND_CATALOG_API_URL + (SIRIUS_GROUND_CATALOG_API_URL.includes('?')?'&':'?') +
+      'type=grounds&callback=' + encodeURIComponent(callbackName) + '&_=' + Date.now();
+    document.head.appendChild(script);
+  });
+  return siriusGroundCatalogLoadPromise;
+}
+
 let siriusUpcomingMatches = [];
 
 function loadSiriusUpcomingMatches(){
@@ -184,7 +239,7 @@ function upcomingDateLabel(value){
 }
 
 function focusUpcomingVenue(venue){
-  const normalize = value => String(value || '').replace(/[\s\u3000]/g,'').replace(/[（）]/g, c => c === '（' ? '(' : ')').toLowerCase();
+  const normalize = value => String(value || '').normalize('NFKC').replace(/[\\s\\u3000]/g,'').toLowerCase();
   const target = normalize(venue);
   const ground = typeof grounds !== 'undefined' ? Object.values(grounds).find(g => {
     const name = normalize(g.name);
@@ -194,9 +249,21 @@ function focusUpcomingVenue(venue){
   if(ground && marker && typeof map !== 'undefined'){
     map.flyTo([ground.lat,ground.lng],Math.max(map.getZoom(),15));
     marker.openPopup();
-  }else{
-    window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(venue),'_blank','noopener');
+    return;
   }
+  const catalogMatch = Array.isArray(siriusGroundCatalog) ? siriusGroundCatalog.find(g=>{
+    const name=normalize(g.ground);
+    return name && (name===target || name.includes(target) || target.includes(name)) &&
+      Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lng));
+  }) : null;
+  const provisionalName = catalogMatch && Object.keys(provisionalGroundMarkers || {}).find(name=>normalize(name)===normalize(catalogMatch.ground));
+  const provisionalMarker = provisionalName && provisionalGroundMarkers[provisionalName];
+  if(provisionalMarker && typeof map !== 'undefined'){
+    map.flyTo(provisionalMarker.getLatLng(),Math.max(map.getZoom(),15));
+    provisionalMarker.openPopup();
+    return;
+  }
+  window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(venue),'_blank','noopener');
 }
 
 function extractUpcomingOpponent(match){
