@@ -367,45 +367,116 @@ function getSiriusGroundCatalogForApi_() {
  * 会場名だけでの検索は禁止。取得座標は「要確認」として人の確認を必須にする。
  */
 function geocodeSiriusGroundCatalogBatch() {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('GOOGLE_MAPS_API_KEY');
+  if (!apiKey) {
+    throw new Error('スクリプトプロパティ GOOGLE_MAPS_API_KEY がありません。Google Places API (New) を有効にしたAPIキーを設定してください。');
+  }
+
   const sheet = ensureSiriusGroundCatalogSheet_();
   const all = sheet.getDataRange().getValues();
   if (all.length < 2) { console.log('会場カタログに会場がありません。'); return; }
   const headers = all[0].map(function(v) { return String(v || '').trim(); });
   const ix = {};
   headers.forEach(function(h, i) { ix[h] = i; });
-  ['ground', 'lat', 'lng', 'geoStatus', 'address'].forEach(function(h) {
+  ['ground', 'lat', 'lng', 'geoStatus', 'address', 'notes'].forEach(function(h) {
     if (ix[h] === undefined) throw new Error('必要列がありません: ' + h);
   });
-  let attempted = 0, located = 0, noAddress = 0;
+
+  let attempted = 0, located = 0, failed = 0;
   const max = SIRIUS_GROUND_CATALOG_CONFIG.geocodeBatchSize || 10;
+
   for (let i = 1; i < all.length && attempted < max; i++) {
-    const row = all[i], name = String(row[ix.ground] || '').trim();
+    const row = all[i];
+    const name = String(row[ix.ground] || '').trim();
     if (!name || String(row[ix.geoStatus] || '') === '確認済み') continue;
     if ((row[ix.lat] !== '' && row[ix.lat] != null) || (row[ix.lng] !== '' && row[ix.lng] != null)) continue;
+
     const address = String(row[ix.address] || '').trim();
-    if (!address) {
-      if (!String(row[ix.geoStatus] || '').match(/住所なし|住所確認待ち/)) row[ix.geoStatus] = '住所なし';
-      noAddress++;
-      continue;
-    }
+    const officialText = ix.officialText === undefined ? '' : String(row[ix.officialText] || '').trim();
+    // 住所だけのジオコーディングではなく、Google Maps上の施設検索結果(Places API)を優先する。
+    // 住所がある場合は検索語に加え、同名施設の誤選択を抑える。
+    const query = [name, address].filter(Boolean).join(' ');
     attempted++;
+
     try {
-      const response = Maps.newGeocoder().setRegion('jp').geocode(address + ', Japan');
-      if (response && response.status === 'OK' && response.results && response.results.length) {
-        const location = response.results[0].geometry.location;
-        row[ix.lat] = Number(location.lat);
-        row[ix.lng] = Number(location.lng);
-        row[ix.geoStatus] = '要確認';
-        located++;
-      } else row[ix.geoStatus] = '未取得';
+      const place = searchSiriusGroundPlace_(query || officialText || name, apiKey);
+      if (!place || !place.location) {
+        row[ix.geoStatus] = '未取得';
+        failed++;
+        console.warn('Google Maps施設検索で候補なし: ' + name + ' / query=' + query);
+        continue;
+      }
+
+      row[ix.lat] = Number(place.location.latitude);
+      row[ix.lng] = Number(place.location.longitude);
+      row[ix.geoStatus] = '要確認';
+
+      const placeName = place.displayName && place.displayName.text ? place.displayName.text : '';
+      const placeAddress = String(place.formattedAddress || '');
+      const mapsUrl = String(place.googleMapsUri || '');
+      const placeId = String(place.id || '');
+      const note = [
+        'Google Places検索候補（未確認）',
+        '検索語=' + query,
+        '候補施設名=' + placeName,
+        '候補住所=' + placeAddress,
+        'place_id=' + placeId,
+        'Google Maps=' + mapsUrl
+      ].join('\n');
+      const existingNotes = String(row[ix.notes] || '').trim();
+      row[ix.notes] = existingNotes ? existingNotes + '\n' + note : note;
+      located++;
+      console.log('施設検索候補取得: ' + name + ' => ' + placeName + ' / ' + placeAddress + ' / ' + mapsUrl);
     } catch (e) {
       row[ix.geoStatus] = '未取得';
-      console.warn('住所からの座標取得失敗: ' + name + ' / ' + address + ' / ' + e);
+      failed++;
+      console.warn('Google Places検索失敗: ' + name + ' / ' + e);
     }
+
+    // APIへの連続アクセスを少し抑制する。
+    Utilities.sleep(150);
   }
+
   sheet.getRange(1, 1, all.length, headers.length).setValues(all);
-  console.log('住所ベース座標検索完了: 試行=' + attempted + ', 座標取得=' + located +
-    ', 住所なし=' + noAddress + '。取得座標は「要確認」のままです。');
+  console.log('Google Maps施設検索完了: 試行=' + attempted + ', 座標候補取得=' + located +
+    ', 失敗=' + failed + '。取得座標はすべて「要確認」です。候補住所とGoogle Maps URLをメモ欄で確認し、現地のグラウンドと一致した場合のみ「確認済み」にしてください。');
+}
+
+/**
+ * Google Places API (New) のテキスト検索で施設候補を取得する。
+ * APIキーはスクリプトプロパティ GOOGLE_MAPS_API_KEY に保存する。
+ * 戻り値の先頭候補は自動確定せず、呼び出し側で必ず「要確認」とする。
+ */
+function searchSiriusGroundPlace_(query, apiKey) {
+  const url = 'https://places.googleapis.com/v1/places:searchText';
+  const payload = {
+    textQuery: String(query || '').trim(),
+    languageCode: 'ja',
+    regionCode: 'JP',
+    maxResultCount: 5
+  };
+  const response = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    headers: {
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.googleMapsUri'
+    },
+    muteHttpExceptions: true
+  });
+  const status = response.getResponseCode();
+  const body = response.getContentText();
+  if (status < 200 || status >= 300) {
+    throw new Error('Places API HTTP ' + status + ': ' + body.slice(0, 500));
+  }
+  const data = JSON.parse(body || '{}');
+  const places = Array.isArray(data.places) ? data.places : [];
+  if (!places.length) return null;
+
+  // 候補一覧の全件をシートに格納する機能ではなく、最上位候補を仮置きする。
+  // 座標を地図に出すには、候補住所・地図リンクを人が確認してからgeoStatusを変更する。
+  return places[0];
 }
 
 /** 未確認の旧座標をクリアする。geoStatus=確認済みの行は保持する。 */
