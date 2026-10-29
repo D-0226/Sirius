@@ -259,6 +259,7 @@ function renderInitialMarkersInBatches(list, batchSize=24){
       loadGroundsFromSheet(),
       loadMatchesFromSheet({silent:true}),
       loadGroundMemosFromSheet(),
+      loadSiriusGroundCatalog(),
     ]);
     if(groundsOk){
       rebuildGroundMatchLinksAndFindUnknowns();
