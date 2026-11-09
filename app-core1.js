@@ -280,60 +280,103 @@ function groundIcon(){
   });
 }
 
-async function loadGroundsFromSheet(){
-  if(!GROUNDS_CSV_URL) return false;
-  try{
-    const res = await fetch(GROUNDS_CSV_URL, {cache:'no-store'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const text = await res.text();
-    const rows = parseCSV(text);
-    const headerIdx = rows.findIndex(r => r.map(c=>String(c).trim()).includes('ground'));
-    if(headerIdx === -1) throw new Error('groundsヘッダが見つかりません');
-    const header = rows[headerIdx].map(c=>String(c).trim());
-    const idx = name => header.indexOf(name);
-    const iGround=idx('ground'), iAddress=idx('address'), iLat=idx('lat'), iLng=idx('lng');
-    const iAccuracy=idx('accuracy'), iMap=idx('map_url'), iSource=idx('source_url'), iUpdated=idx('updated_at');
-    if(iGround < 0 || iLat < 0 || iLng < 0) throw new Error('ground / lat / lng が不足しています');
+// 地図表示用の確定会場マスターAPI。候補カタログAPI（?type=grounds）とは分離する。
+const GROUND_MASTER_API_URL = 'https://script.google.com/macros/s/AKfycbwo1C-XsWwk8l1JRMe0yyWR9jQzVyCoURTiEjzKKCuLM9O775H9vWouCRKoZQNINnfWhA/exec';
 
-    grounds = {};
-    const skippedGroundRows = [];
-    const duplicateGroundNames = [];
-    for(let i=headerIdx+1;i<rows.length;i++){
-      const r=rows[i]||[];
-      const name=String(r[iGround]||'').trim();
-      if(!name) continue;
-      const rawLat=String(r[iLat]??'').trim();
-      const rawLng=String(r[iLng]??'').trim();
-      const lat=parseFloat(rawLat);
-      const lng=parseFloat(rawLng);
-      if(!Number.isFinite(lat) || !Number.isFinite(lng)){
-        skippedGroundRows.push({name,lat:rawLat,lng:rawLng,row:i+1});
-        continue;
-      }
-      if(grounds[name]) duplicateGroundNames.push({name,row:i+1});
-      const verified = GROUND_VERIFIED_INFO[name] || {};
-      grounds[name] = {
-        name,
-        address: verified.address || (iAddress>=0 ? String(r[iAddress]||'').trim() : ''),
-        lat: Number.isFinite(verified.lat) ? verified.lat : lat,
-        lng: Number.isFinite(verified.lng) ? verified.lng : lng,
-        accuracy: verified.accuracy || (iAccuracy>=0 ? String(r[iAccuracy]||'').trim() : ''),
-        mapUrl: iMap>=0 ? String(r[iMap]||'').trim() : '',
-        sourceUrl: verified.sourceUrl || (iSource>=0 ? String(r[iSource]||'').trim() : ''),
-        updatedAt: verified.verifiedAt || (iUpdated>=0 ? String(r[iUpdated]||'').trim() : ''),
-        parking: verified.parking || '', toilet: verified.toilet || '', access: verified.access || '',
-        facilities: verified.facilities || '', spectator: verified.spectator || '', caution: verified.caution || '',
-        matches: []
-      };
+function fetchGroundMasterJsonp(){
+  return new Promise((resolve,reject)=>{
+    const callbackName='__siriusGroundMasterCallback';
+    const script=document.createElement('script');
+    let settled=false;
+    const cleanup=()=>{
+      if(settled) return;
+      settled=true;
+      try{ delete window[callbackName]; }catch(e){ window[callbackName]=undefined; }
+      if(script.parentNode) script.parentNode.removeChild(script);
+    };
+    window[callbackName]=(payload)=>{
+      cleanup();
+      if(payload && payload.ok && Array.isArray(payload.grounds)) resolve(payload.grounds);
+      else reject(new Error(payload && payload.error || 'ground-master API response invalid'));
+    };
+    script.onerror=()=>{
+      cleanup();
+      reject(new Error('ground-master API JSONP load failed'));
+    };
+    script.src=GROUND_MASTER_API_URL+'?type=ground-master&callback='+callbackName+'&_='+Date.now();
+    document.head.appendChild(script);
+  });
+}
+
+async function loadGroundsFromSheet(){
+  let sourceRows=[];
+  let source='ground-master API';
+  try{
+    const master=await fetchGroundMasterJsonp();
+    if(master.length){
+      sourceRows=master;
+    }else{
+      throw new Error('ground-master API returned no rows');
     }
-    console.log(`grounds loaded: ${Object.keys(grounds).length}`);
-    if(skippedGroundRows.length) console.warn('グラウンド地図未プロット（緯度・経度未設定/不正）:', skippedGroundRows);
-    if(duplicateGroundNames.length) console.warn('グラウンドマスタの重複名:', duplicateGroundNames);
-    return true;  }catch(err){
-    console.error('grounds sheet fetch failed', err);
-    toast('グラウンド情報の取得に失敗しました');
-    return false;
+  }catch(apiError){
+    console.warn('確定会場マスターAPIを取得できないため、従来CSVへフォールバックします。',apiError);
+    try{
+      if(!GROUNDS_CSV_URL) throw apiError;
+      const res=await fetch(GROUNDS_CSV_URL,{cache:'no-store'});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const rows=parseCSV(await res.text());
+      const headerIdx=rows.findIndex(r=>r.map(c=>String(c).trim()).includes('ground'));
+      if(headerIdx===-1) throw new Error('groundsヘッダが見つかりません');
+      const header=rows[headerIdx].map(c=>String(c).trim());
+      const idx=name=>header.indexOf(name);
+      const iGround=idx('ground'),iAddress=idx('address'),iLat=idx('lat'),iLng=idx('lng');
+      const iAccuracy=idx('accuracy'),iMap=idx('map_url'),iSource=idx('source_url'),iUpdated=idx('updated_at');
+      if(iGround<0||iLat<0||iLng<0) throw new Error('ground / lat / lng が不足しています');
+      sourceRows=rows.slice(headerIdx+1).map(r=>({
+        ground:r[iGround],address:iAddress>=0?r[iAddress]:'',lat:r[iLat],lng:r[iLng],
+        accuracy:iAccuracy>=0?r[iAccuracy]:'',mapUrl:iMap>=0?r[iMap]:'',
+        sourceUrl:iSource>=0?r[iSource]:'',updatedAt:iUpdated>=0?r[iUpdated]:''
+      }));
+      source='legacy CSV fallback';
+    }catch(csvError){
+      console.error('grounds source fetch failed',csvError);
+      toast('グラウンド情報の取得に失敗しました');
+      return false;
+    }
   }
+
+  grounds={};
+  const skippedGroundRows=[];
+  const duplicateGroundNames=[];
+  sourceRows.forEach((item,index)=>{
+    const name=String(item.ground||item.name||'').trim();
+    if(!name) return;
+    const rawLat=String(item.lat??'').trim(),rawLng=String(item.lng??'').trim();
+    const lat=Number(rawLat),lng=Number(rawLng);
+    if(!Number.isFinite(lat)||!Number.isFinite(lng)){
+      skippedGroundRows.push({name,lat:rawLat,lng:rawLng,row:index+2});
+      return;
+    }
+    if(grounds[name]) duplicateGroundNames.push({name,row:index+2});
+    const verified=GROUND_VERIFIED_INFO[name]||{};
+    grounds[name]={
+      name,
+      address:verified.address||String(item.address||'').trim(),
+      lat:Number.isFinite(verified.lat)?verified.lat:lat,
+      lng:Number.isFinite(verified.lng)?verified.lng:lng,
+      accuracy:verified.accuracy||String(item.accuracy||'').trim(),
+      mapUrl:String(item.mapUrl||item.map_url||'').trim(),
+      sourceUrl:verified.sourceUrl||String(item.sourceUrl||item.source_url||'').trim(),
+      updatedAt:verified.verifiedAt||String(item.updatedAt||item.updated_at||'').trim(),
+      parking:verified.parking||'',toilet:verified.toilet||'',access:verified.access||'',
+      facilities:verified.facilities||'',spectator:verified.spectator||'',caution:verified.caution||'',
+      matches:[]
+    };
+  });
+  console.log('grounds loaded:',Object.keys(grounds).length,'source:',source);
+  if(skippedGroundRows.length) console.warn('グラウンド地図未プロット（緯度・経度未設定/不正）:',skippedGroundRows);
+  if(duplicateGroundNames.length) console.warn('グラウンドマスタの重複名:',duplicateGroundNames);
+  return Object.keys(grounds).length>0;
 }
 
 // Apps Scriptウェブアプリのデプロイ後URL(書き込み用)。設定するまではローカル保存のみで動作します。
