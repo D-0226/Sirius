@@ -592,7 +592,7 @@ function importRows(rows){
     });
     // 元シート形式: 日付,開始時間,終了時間,場所,引率,TM名,カテゴリ,自チームスコア,相手チームスコア,得失点,勝敗,相手チーム名,備考,FC名
     const iDate=col('日付'), iCat=col('カテゴリ'), iMy=col('自チームスコア'), iOpp=col('相手チームスコア'), iRes=col('勝敗'), iTeam=col('FC名'), iPlace=col('場所');
-    let added=0, dup=0, noTeam=0; const unmatched = new Set(); const touched = new Set();
+    let added=0, dup=0, noTeam=0, venueRows=0, venueLinked=0; const unmatched = new Set(); const touched = new Set();
     const unmatchedPlaces = new Set();
     const existingKeys = new Set();
     points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m, !!m.opponentTeamName))));
@@ -609,6 +609,23 @@ function importRows(rows){
       const resultRaw = String(r[iRes]==null?'':r[iRes]).trim();
       const result = RESULT_MAP[resultRaw] || resultRaw;
 
+      // 会場履歴はチーム区分に依存しないため、SIRIUS内対戦の判定より先に登録する。
+      // FC名がSIRIUSチーム名であっても、会場履歴を取りこぼさない。
+      if(iPlace>=0){
+        const place = String(r[iPlace]==null?'':r[iPlace]).trim();
+        if(place){
+          venueRows++;
+          const opponentNameIndex = col('相手チーム名');
+          const venueOpponent = opponentNameIndex>=0
+            ? String(r[opponentNameIndex]==null?'':r[opponentNameIndex]).trim()
+            : '';
+          const ok = upsertGroundMatch(place, {
+            date, category, opponent: venueOpponent || teamRaw, score, result
+          });
+          if(ok) venueLinked++; else unmatchedPlaces.add(place);
+        }
+      }
+
       // 旧形式にSIRIUSチーム名が含まれる場合、対外チームとして登録しない。
       // 両側がSIRIUS内チームなら内部対戦として保存し、片側の区分が不明なら保留する。
       if(isSiriusTeamName(teamRaw)){
@@ -618,14 +635,6 @@ function importRows(rows){
           console.warn('旧形式のSIRIUSチーム記録はチーム区分を確認できないため、対外戦績から除外:', teamRaw, date, category);
         }
         continue;
-      }
-
-      if(iPlace>=0){
-        const place = String(r[iPlace]==null?'':r[iPlace]).trim();
-        if(place){
-          const ok = upsertGroundMatch(place, {date, category, opponent: teamRaw, score, result});
-          if(!ok) unmatchedPlaces.add(place);
-        }
       }
 
       const p = findTeamPoint(teamRaw);
@@ -642,6 +651,7 @@ function importRows(rows){
     renderList();
     persist();
     void saveUnmatchedOpponents().then(()=>autoRegisterUnmatchedOpponentsBatch());
+    console.info('GROUND_HISTORY_IMPORT_DIAG_v3',{venueRows,venueLinked,unmatchedVenueCount:unmatchedPlaces.size,unmatchedVenueNames:[...unmatchedPlaces]});
     let msg = `戦績 ${added}件登録`;
     if(dup) msg += `／重複${dup}件スキップ`;
     if(noTeam) msg += `／該当チーム無し${noTeam}件`;
