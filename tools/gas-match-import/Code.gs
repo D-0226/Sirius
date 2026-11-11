@@ -22,7 +22,7 @@ const SIRIUS_IMPORT_CONFIG = {
  */
 function previewCsvJune2026() {
   const result = fetchMatchCandidates_(SIRIUS_IMPORT_CONFIG.previewPageUrl);
-  const header = ['team', 'date', 'category', 'score', 'result', 'siriusTeam', 'pkScore'];
+  const header = ['team', 'date', 'category', 'score', 'result', 'siriusTeam', 'pkScore', 'place'];
   const csvLines = [header.map(csvEscape_).join(',')];
   let parsedCount = 0;
   let parseFailureCount = 0;
@@ -41,7 +41,8 @@ function previewCsvJune2026() {
       row.score,
       row.result,
       row.siriusTeam,
-      row.pkScore
+      row.pkScore,
+      row.place
     ].map(csvEscape_).join(','));
   });
 
@@ -814,7 +815,8 @@ function parseCandidateToCsvRow_(candidate) {
     date: candidate.date,
     category: candidate.category,
     score: score,
-    result: result
+    result: result,
+    place: String(candidate.venue || '').trim()
   };
 }
 
@@ -842,7 +844,11 @@ function testFinalMatchParser() {
       ' actual=' + JSON.stringify(row));
     if (ok) passed++;
   });
-  console.log('FINAL PARSER TEST: ' + passed + '/' + cases.length + ' passed');
+  const venueRow = parseCandidateToCsvRow_({text:'〇 FC SIRIUS 1-0 TEST FC',date:'2025-08-01',category:'U-11',venue:'富浜緑地サッカー場G'});
+  const venueOk = !!venueRow && venueRow.place === '富浜緑地サッカー場G';
+  console.log((venueOk ? 'PASS' : 'FAIL') + ' 会場名の引継ぎ expected=富浜緑地サッカー場G actual=' + (venueRow && venueRow.place));
+  if (venueOk) passed++;
+  console.log('FINAL PARSER TEST: ' + passed + '/' + (cases.length + 1) + ' passed');
   if (passed !== cases.length) throw new Error('パーサー回帰テストに失敗しました。ログのFAIL行を確認してください。');
 }
 
@@ -900,6 +906,7 @@ function fetchMatchCandidates_(url, sourceYear, sourceMonth) {
   const seen = {};
   let currentDate = '';
   let currentCategory = '';
+  let currentVenue = '';
   const dateHeaderPattern = /(?:^|[・\s])(\d{1,2})\s*月\s*(\d{1,2})\s*日/;
   const categoryPattern = /U\s*[-－]?\s*(\d{1,2})[^\n]{0,12}/i;
   const scorePattern = /(?:^|[^0-9])([0-9]{1,2})\s*[-－―−:：]\s*([0-9]{1,2})(?:$|[^0-9])/;
@@ -908,6 +915,7 @@ function fetchMatchCandidates_(url, sourceYear, sourceMonth) {
     const line = lines[i];
     const dateMatch = line.match(dateHeaderPattern);
     if (dateMatch) {
+      currentVenue = '';
       currentDate = effectiveYear + '-' +
         ('0' + effectiveMonth).slice(-2) + '-' +
         ('0' + dateMatch[2]).slice(-2);
@@ -915,6 +923,11 @@ function fetchMatchCandidates_(url, sourceYear, sourceMonth) {
 
     const categoryMatch = line.match(categoryPattern);
     if (categoryMatch) currentCategory = 'U-' + categoryMatch[1];
+
+    // 公式ページでは会場名が「○○Gにて（市区町村）」の独立行で記載される。
+    // 直近の会場行を、その後に続く試合結果候補へ引き継ぐ。
+    const venueMatch = line.match(/^(.{2,100}?)\s*にて\s*[（(]/);
+    if (venueMatch) currentVenue = venueMatch[1].trim();
 
     // 時刻（例: 13時集合〜17:00）をスコアと誤認しないよう、
     // 自チーム名を含む行に限定する。集合・中止などの予定情報は対象外。
@@ -928,6 +941,7 @@ function fetchMatchCandidates_(url, sourceYear, sourceMonth) {
     candidates.push({
       date: currentDate,
       category: currentCategory,
+      venue: currentVenue,
       text: line
     });
   }
