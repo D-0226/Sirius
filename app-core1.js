@@ -265,7 +265,7 @@ const GROUND_VERIFIED_INFO = {
 };
 
 function normalizeGroundName(value){
-  return String(value||'').normalize('NFKC').replace(/[\\s\\u3000]+/g,'').toLowerCase();
+  return String(value||'').normalize('NFKC').replace(/[\s\u3000]+/g,'').toLowerCase();
 }
 let groundAliasToName = {};
 function rebuildGroundAliasIndex(){
