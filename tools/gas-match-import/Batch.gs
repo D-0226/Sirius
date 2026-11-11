@@ -557,8 +557,13 @@ function previewSiriusVenueBackfillBatch() {
       console.log('停止: 試合日が取得できない候補があります。カーソルは進めていません。日付解析を修正してから再実行してください。');
       throw new Error('日付未取得=' + counts.missingDate + '。誤照合防止のためプレビューを停止しました。');
     }
-    props.setProperty('SIRIUS_VENUE_PREVIEW_CURSOR', String(start + batch.length));
-    console.log('次回プレビュー開始位置=' + (start + batch.length));
+    const nextCursor = start + batch.length;
+    props.setProperty('SIRIUS_VENUE_PREVIEW_CURSOR', String(nextCursor));
+    const totals = accumulateSiriusVenuePreviewTotals_(counts);
+    console.log('次回プレビュー開始位置=' + nextCursor);
+    if (nextCursor > inventory.length) {
+      console.log('全ページのプレビュー完了。累計=' + JSON.stringify(totals));
+    }
     console.log('シートへの書き込み・既存データ変更は行っていません。');
   } finally {
     lock.releaseLock();
@@ -610,4 +615,85 @@ function diagnoseSiriusVenueBackfillDates() {
   parsed.candidates.slice(0, 10).forEach(function(c, i) {
     console.log('CANDIDATE ' + (i + 1) + ' date=' + c.date + ' category=' + c.category + ' text=' + c.text);
   });
+}
+
+
+/**
+ * 会場補完プレビューの累計をスクリプトプロパティに保存する。
+ * Google Sheetsのデータは変更しない。
+ */
+function accumulateSiriusVenuePreviewTotals_(counts) {
+  const props = PropertiesService.getScriptProperties();
+  const key = 'SIRIUS_VENUE_PREVIEW_TOTALS';
+  let totals = {};
+  try { totals = JSON.parse(props.getProperty(key) || '{}'); } catch (e) { totals = {}; }
+  Object.keys(counts).forEach(function(name) {
+    totals[name] = Number(totals[name] || 0) + Number(counts[name] || 0);
+  });
+  props.setProperty(key, JSON.stringify(totals));
+  return totals;
+}
+
+/**
+ * 自動プレビュー開始。現在のカーソル（現在はページ13）から再開する。
+ * 3ページずつ実行し、次回を1分後の時間主導トリガーで予約する。
+ * 既存の会場プレビューカーソルはリセットしない。
+ */
+function startSiriusVenueBackfillPreviewAuto() {
+  const props = PropertiesService.getScriptProperties();
+  const cursor = Math.max(1, Number(props.getProperty('SIRIUS_VENUE_PREVIEW_CURSOR') || 1));
+  const totalsKey = 'SIRIUS_VENUE_PREVIEW_TOTALS';
+  if (!props.getProperty(totalsKey)) {
+    // ここまでに手動確認済みのページ1〜12の集計値を引き継ぐ。
+    const initial = cursor === 13
+      ? {pages:12,candidates:1447,withVenue:1341,missingDate:0,parseFailures:6,internal:48,exact:1007,legacyUnique:48,ambiguous:1,notFound:237}
+      : {pages:0,candidates:0,withVenue:0,missingDate:0,parseFailures:0,internal:0,exact:0,legacyUnique:0,ambiguous:0,notFound:0};
+    props.setProperty(totalsKey, JSON.stringify(initial));
+  }
+  deleteSiriusVenueBackfillPreviewAutoTriggers_();
+  console.log('会場補完プレビュー自動実行を開始します。開始ページ=' + cursor + '。3ページずつ実行します。');
+  runSiriusVenueBackfillPreviewAuto_();
+}
+
+/** 時間主導トリガーから呼び出す。全ページ完了時に自動停止する。 */
+function runSiriusVenueBackfillPreviewAuto_() {
+  try {
+    previewSiriusVenueBackfillBatch();
+  } catch (error) {
+    deleteSiriusVenueBackfillPreviewAutoTriggers_();
+    console.error('会場補完プレビュー自動実行を停止しました。カーソルは異常発生前の位置を維持します。詳細=' + error);
+    throw error;
+  }
+
+  const inventory = fetchMonthlyPageInventory_();
+  const cursor = Math.max(1, Number(PropertiesService.getScriptProperties()
+    .getProperty('SIRIUS_VENUE_PREVIEW_CURSOR') || 1));
+  if (cursor <= inventory.length) {
+    deleteSiriusVenueBackfillPreviewAutoTriggers_();
+    ScriptApp.newTrigger('runSiriusVenueBackfillPreviewAuto_')
+      .timeBased()
+      .after(60 * 1000)
+      .create();
+    console.log('次の3ページを約1分後に自動実行します。次回開始ページ=' + cursor);
+  } else {
+    deleteSiriusVenueBackfillPreviewAutoTriggers_();
+    const totals = PropertiesService.getScriptProperties().getProperty('SIRIUS_VENUE_PREVIEW_TOTALS') || '{}';
+    console.log('全36ページの自動プレビューが完了しました。累計=' + totals);
+    console.log('Google Sheetsのデータは変更していません。');
+  }
+}
+
+/** 会場プレビュー専用トリガーだけを削除する。日次取込トリガーには触れない。 */
+function deleteSiriusVenueBackfillPreviewAutoTriggers_() {
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === 'runSiriusVenueBackfillPreviewAuto_') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+}
+
+/** 自動プレビューを途中停止する。カーソル・集計値・シートデータは保持する。 */
+function stopSiriusVenueBackfillPreviewAuto() {
+  deleteSiriusVenueBackfillPreviewAutoTriggers_();
+  console.log('会場補完プレビューの自動実行を停止しました。再開時はstartSiriusVenueBackfillPreviewAutoを実行してください。');
 }
