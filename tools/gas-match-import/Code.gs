@@ -518,7 +518,6 @@ function previewRebuildJune2026() {
       console.log((index + 1) + '\t解析失敗\traw=' + candidate.text);
       return;
     }
-
     if (isInternalSiriusMatch_(row.team)) {
       counts['集計対象外（SIRIUS内）']++;
       console.log(
@@ -910,7 +909,7 @@ function fetchMatchCandidates_(url, sourceYear, sourceMonth) {
   let currentDate = '';
   let currentCategory = '';
   let currentVenue = '';
-  const dateHeaderPattern = /(?:^|[・\s])(\d{1,2})\s*月\s*(\d{1,2})\s*日/;
+  const dateHeaderPattern = /^(?:[●・]\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*日/;
   const categoryPattern = /U\s*[-－]?\s*(\d{1,2})[^\n]{0,12}/i;
   const scorePattern = /(?:^|[^0-9])([0-9]{1,2})\s*[-－―−:：]\s*([0-9]{1,2})(?:$|[^0-9])/;
 
@@ -1018,7 +1017,7 @@ function htmlToPlainText_(html) {
 
 /** 公式ページの日付見出し（●1月26日（日）等）の解析テスト。 */
 function testMatchDateHeaderPattern() {
-  const pattern = /(?:^|[●・\\s])\\s*(\\d{1,2})\\s*月\\s*(\\d{1,2})\\s*日/;
+  const pattern = /^(?:[●・]\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*日/;
   const cases = [
     {line:'●1月26日（日）', month:'1', day:'26'},
     {line:'・ 1月25日（土）', month:'1', day:'25'},
