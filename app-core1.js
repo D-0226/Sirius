@@ -620,6 +620,9 @@ function rebuildGroundMatchLinksAndFindUnknowns(){
     registeredMatchCount,
     unmatchedMatchCount:unknown,
     unregisteredGroundCandidateCount:Object.keys(unregisteredGroundCandidates||{}).length,
+    unregisteredGroundNames:Object.keys(unregisteredGroundCandidates||{}).sort(),
+    groundMasterNames:Object.values(grounds).map(g=>({name:g.name,aliases:g.aliases||[]})),
+    aliasIndexCount:Object.keys(groundAliasToName||{}).length,
     samples:linkedGrounds.slice(0,8).map(g=>({ground:g.name,count:g.matches.length}))
   });
 }
