@@ -111,6 +111,7 @@ function runSiriusImportBatch() {
     const batchExternalExact = new Set();
     const batchExternalIdentity = new Map();
     const batchExternalLegacyIdentity = new Set();
+    const venueUpdates = new Map();
     const batchInternalExact = new Set();
 
     parsedRecords.forEach(function(record) {
@@ -171,11 +172,17 @@ function runSiriusImportBatch() {
         score: row.score || '',
         result: row.result || '',
         siriusTeam: row.siriusTeam || '',
-        pkScore: row.pkScore || ''
+        pkScore: row.pkScore || '',
+        place: row.place || ''
       };
       const exactKey = siriusExternalExactKey_(external);
       const identityKey = siriusExternalIdentityKey_(external);
       if (externalState.exact.has(exactKey) || batchExternalExact.has(exactKey)) {
+        // 既存行の会場が空欄の場合だけ補完する。既存の会場値は上書きしない。
+        if (externalState.exact.has(exactKey) && external.place) {
+          const existingExact = externalState.byExact.get(exactKey);
+          if (existingExact && !existingExact.place) venueUpdates.set(existingExact.rowNumber, external.place);
+        }
         summary.duplicates++;
         return;
       }
@@ -194,10 +201,16 @@ function runSiriusImportBatch() {
       batchExternalExact.add(exactKey);
       batchExternalIdentity.set(identityKey, external);
       batchExternalLegacyIdentity.add(legacyKey);
-      externalRowsToAppend(siriusMapExternalRow_(externalHeaders, external));
+      externalRowsToAppend.push(siriusMapExternalRow_(externalHeaders, external));
       externalState.exact.add(exactKey);
       externalState.byIdentity.set(identityKey, external);
       summary.addedExternal++;
+    });
+
+    // 既存の会場欄が空欄の完全一致レコードだけ補完する。非空欄の既存値は変更しない。
+    const placeColumn = externalHeaders.indexOf('place') + 1;
+    venueUpdates.forEach(function(place, rowNumber) {
+      if (placeColumn > 0) externalSheet.getRange(rowNumber, placeColumn).setValue(place);
     });
 
     // 集計結果をまとめて書き込み。既存行の上書き・削除はしない。
@@ -244,7 +257,7 @@ function ensureSiriusExternalHeaders_(sheet) {
   required.forEach(function(name) {
     if (headers.indexOf(name) < 0) throw new Error('「' + sheet.getName() + '」に必要な列 ' + name + ' がありません。');
   });
-  ['siriusTeam', 'pkScore'].forEach(function(name) {
+  ['siriusTeam', 'pkScore', 'place'].forEach(function(name) {
     if (headers.indexOf(name) < 0) {
       headers.push(name);
       sheet.getRange(1, headers.length).setValue(name);
@@ -285,6 +298,7 @@ function loadSiriusExternalState_(sheet, headers, ss) {
   headers.forEach(function(h, i) { idx[h] = i; });
   const tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
   const exact = new Set();
+  const byExact = new Map();
   const byIdentity = new Map();
   const legacyByIdentity = new Map();
   for (let i = 1; i < values.length; i++) {
@@ -294,9 +308,12 @@ function loadSiriusExternalState_(sheet, headers, ss) {
       team: r[idx.team], date: normalizeSheetDate_(r[idx.date], tz),
       category: r[idx.category], score: r[idx.score], result: r[idx.result],
       siriusTeam: idx.siriusTeam >= 0 ? r[idx.siriusTeam] : '',
-      pkScore: idx.pkScore >= 0 ? r[idx.pkScore] : ''
+      pkScore: idx.pkScore >= 0 ? r[idx.pkScore] : '',
+      place: idx.place >= 0 ? String(r[idx.place] || '') : ''
     };
-    exact.add(siriusExternalExactKey_(obj));
+    const exactKey = siriusExternalExactKey_(obj);
+    exact.add(exactKey);
+    if (!byExact.has(exactKey)) byExact.set(exactKey, {rowNumber:i + 1, place:obj.place});
     const identity = siriusExternalIdentityKey_(obj);
     if (!byIdentity.has(identity)) byIdentity.set(identity, obj);
     // 旧データにsiriusTeam列がない／空欄の場合、歴史データの再取込を避けるため
@@ -306,7 +323,7 @@ function loadSiriusExternalState_(sheet, headers, ss) {
       if (!legacyByIdentity.has(legacyIdentity)) legacyByIdentity.set(legacyIdentity, obj);
     }
   }
-  return { exact: exact, byIdentity: byIdentity, legacyByIdentity: legacyByIdentity };
+  return { exact: exact, byExact: byExact, byIdentity: byIdentity, legacyByIdentity: legacyByIdentity };
 }
 
 function loadSiriusInternalState_(sheet) {
