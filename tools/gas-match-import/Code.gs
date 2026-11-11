@@ -852,7 +852,7 @@ function testFinalMatchParser() {
   console.log((venueOk ? 'PASS' : 'FAIL') + ' 会場名の引継ぎ expected=富浜緑地サッカー場G actual=' + (venueRow && venueRow.place));
   if (venueOk) passed++;
   console.log('FINAL PARSER TEST: ' + passed + '/' + (cases.length + 1) + ' passed');
-  if (passed !== cases.length) throw new Error('パーサー回帰テストに失敗しました。ログのFAIL行を確認してください。');
+  if (passed !== cases.length + 1) throw new Error('パーサー回帰テストに失敗しました。ログのFAIL行を確認してください。');
 }
 
 /** 公式ページの文字コード・タイトル・スコア行を診断する。 */
