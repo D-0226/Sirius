@@ -444,3 +444,131 @@ function deleteSiriusImportDailyTriggers_() {
     }
   });
 }
+
+
+/**
+ * 過去会場データ補完の読み取り専用プレビュー。
+ * 2025年以降を3か月ページずつ走査し、既存「全学年データ」と照合する。
+ * シートへの書き込みは一切行わない。成功したバッチだけプレビュー位置を進める。
+ */
+function previewSiriusVenueBackfillBatch() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('別の処理が実行中です。');
+  try {
+    const ss = getSiriusBackfillSpreadsheet_();
+    const sheet = ss.getSheetByName(SIRIUS_BATCH_CONFIG.externalSheetName);
+    if (!sheet) throw new Error('タブ「' + SIRIUS_BATCH_CONFIG.externalSheetName + '」がありません。');
+    const values = sheet.getDataRange().getValues();
+    if (!values.length) throw new Error('全学年データにヘッダーがありません。');
+    const headers = values[0].map(function(v) { return String(v || '').trim(); });
+    const idx = {};
+    headers.forEach(function(h, i) { idx[h] = i; });
+    ['team', 'date', 'category', 'score', 'result'].forEach(function(h) {
+      if (idx[h] == null) throw new Error('必要な列「' + h + '」がありません。');
+    });
+
+    const inventory = fetchMonthlyPageInventory_();
+    const props = PropertiesService.getScriptProperties();
+    const start = Math.max(1, Number(props.getProperty('SIRIUS_VENUE_PREVIEW_CURSOR') || 1));
+    const size = 3;
+    const batch = inventory.slice(start - 1, start - 1 + size);
+    if (!batch.length) {
+      console.log('プレビュー完了。全ページ走査済みです。総ページ数=' + inventory.length);
+      return;
+    }
+
+    const tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
+    const exactRows = new Map();
+    const legacyRows = new Map();
+    function addIndex(map, key, rowNumber) {
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(rowNumber);
+    }
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      if (r.every(function(v) { return v === '' || v == null; })) continue;
+      const obj = {
+        team: r[idx.team],
+        date: normalizeSheetDate_(r[idx.date], tz),
+        category: r[idx.category],
+        score: r[idx.score],
+        result: r[idx.result],
+        siriusTeam: idx.siriusTeam == null ? '' : r[idx.siriusTeam],
+        pkScore: idx.pkScore == null ? '' : r[idx.pkScore]
+      };
+      addIndex(exactRows, siriusExternalExactKey_(obj), i + 1);
+      const legacyKey = [
+        normalizeMatchText_(obj.date), normalizeMatchText_(obj.category),
+        normalizeMatchText_(obj.team), normalizeMatchText_(obj.score).replace(/[－―−：]/g, '-'),
+        normalizeMatchText_(obj.result)
+      ].join('|');
+      addIndex(legacyRows, legacyKey, i + 1);
+    }
+
+    const counts = {pages:0,candidates:0,withVenue:0,parseFailures:0,internal:0,exact:0,legacyUnique:0,ambiguous:0,notFound:0};
+    const samples = [];
+    batch.forEach(function(page) {
+      const fetched = fetchMatchCandidates_(page.url, page.year, page.month);
+      if (fetched.status < 200 || fetched.status >= 300) {
+        throw new Error('取得失敗。カーソルは進めていません: ' + page.year + '-' + page.month + ' HTTP=' + fetched.status);
+      }
+      counts.pages++;
+      fetched.candidates.forEach(function(candidate) {
+        counts.candidates++;
+        const row = parseCandidateToCsvRow_(candidate);
+        if (!row) { counts.parseFailures++; return; }
+        if (!row.place) return;
+        counts.withVenue++;
+        if (isInternalSiriusMatch_(row.team)) { counts.internal++; return; }
+        const exactKey = siriusExternalExactKey_(row);
+        const exact = exactRows.get(exactKey) || [];
+        let status = '';
+        let rowNumber = 0;
+        if (exact.length === 1) {
+          counts.exact++; status = '完全一致'; rowNumber = exact[0];
+        } else if (exact.length > 1) {
+          counts.ambiguous++; status = '完全一致が複数';
+        } else {
+          const legacyKey = [
+            normalizeMatchText_(row.date), normalizeMatchText_(row.category),
+            normalizeMatchText_(row.team), normalizeMatchText_(row.score).replace(/[－―−：]/g, '-'),
+            normalizeMatchText_(row.result)
+          ].join('|');
+          const legacy = legacyRows.get(legacyKey) || [];
+          if (legacy.length === 1) { counts.legacyUnique++; status = '旧形式で一意一致'; rowNumber = legacy[0]; }
+          else if (legacy.length > 1) { counts.ambiguous++; status = '旧形式で複数一致'; }
+          else { counts.notFound++; status = '既存行なし'; }
+        }
+        if (samples.length < 12) {
+          samples.push(page.year + '-' + ('0' + page.month).slice(-2) + ' ' + status +
+            ' / ' + row.date + ' / ' + row.team + ' / ' + row.siriusTeam +
+            ' / ' + row.place + (rowNumber ? ' / sheetRow=' + rowNumber : ''));
+        }
+      });
+    });
+
+    console.log('会場補完プレビュー（読み取り専用）');
+    console.log('対象ページ=' + start + '-' + (start + batch.length - 1) + ' / 総ページ=' + inventory.length);
+    console.log('既存シート列=' + headers.join(','));
+    console.log('集計=' + JSON.stringify(counts));
+    samples.forEach(function(s) { console.log('SAMPLE ' + s); });
+    props.setProperty('SIRIUS_VENUE_PREVIEW_CURSOR', String(start + batch.length));
+    console.log('次回プレビュー開始位置=' + (start + batch.length));
+    console.log('シートへの書き込み・既存データ変更は行っていません。');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** プレビュー走査位置だけを先頭に戻す。シートのデータは変更しない。 */
+function resetSiriusVenueBackfillPreview() {
+  PropertiesService.getScriptProperties().deleteProperty('SIRIUS_VENUE_PREVIEW_CURSOR');
+  console.log('会場補完プレビュー位置を1に戻しました。シートのデータは変更していません。');
+}
+
+function getSiriusBackfillSpreadsheet_() {
+  const id = PropertiesService.getScriptProperties().getProperty('SIRIUS_BATCH_SPREADSHEET_ID');
+  const ss = id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) throw new Error('対象スプレッドシートが未設定です。');
+  return ss;
+}
