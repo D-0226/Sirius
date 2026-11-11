@@ -672,17 +672,18 @@ function importRows(rows){
     const iSiriusTeam = col('siriusTeam');
     const iPkScore = col('pkScore');
     const iMatchType = col('matchType')>=0?col('matchType'):col('試合区分');
-    const iPlace = ['place','venue','ground','場所','会場','グラウンド'].map(k=>col(k)).find(i=>i>=0) ?? -1;
-    let added=0, dup=0, noTeam=0, internalAdded=0, internalDup=0, venueRows=0, venueLinked=0;
+    const iPlace = ['place','venue','ground','場所','会場','グラウンド','試合会場','会場名'].map(k=>col(k)).find(i=>i>=0) ?? -1;
+    let added=0, dup=0, noTeam=0, internalAdded=0, internalDup=0, venueRows=0, venueLinked=0, scannedRows=0, skippedNoTeam=0;
     const unmatched = new Set(), unmatchedPlaces = new Set();
     const touched = new Set();
     const existingKeys = new Set();
+    console.info('MATCH_CSV_SIMPLE_SCHEMA_DIAG_v1',{headerIndex:headerIdx,header,columns:{team:iTeam,date:iDate,place:iPlace,category:iCat,score:iScore,result:iRes,siriusTeam:iSiriusTeam},rowCount:rows.length,firstRows:rows.slice(headerIdx+1,headerIdx+4)});
     points.forEach(p=> (p.matches||[]).forEach(m=> existingKeys.add(matchKey(p.id, m, !!m.opponentTeamName))));
     for(let i=headerIdx+1;i<rows.length;i++){
       const r = rows[i]||[];
       if(r.every(c=> c===undefined || c===null || String(c).trim()==='')) continue;
+      scannedRows++;
       const teamRaw = String(r[iTeam]==null?'':r[iTeam]).trim();
-      if(!teamRaw) continue;
       const date = normalizeDateStr(String(r[iDate]==null?'':r[iDate]));
       const category = String(iCat>=0 && r[iCat]!=null?r[iCat]:'').trim();
       const score = String(iScore>=0 && r[iScore]!=null?r[iScore]:'').trim();
@@ -692,12 +693,14 @@ function importRows(rows){
       const pkScore = String(iPkScore>=0 && r[iPkScore]!=null?r[iPkScore]:'').trim();
       const matchTypeRaw = String(iMatchType>=0 && r[iMatchType]!=null?r[iMatchType]:'').trim().toLowerCase();
       const place = String(iPlace>=0 && r[iPlace]!=null?r[iPlace]:'').trim();
-      // 会場履歴はチームマスタへの登録有無・チーム内対戦区分に依存させず先に登録する。
+      // 会場列を先に処理し、チーム名が空欄の行でも履歴を取りこぼさない。
       if(place){
         venueRows++;
-        const ok = upsertGroundMatch(place,{date,category,opponent:teamRaw,score,result});
+        const venueOpponent = teamRaw || siriusTeam || '対戦相手未記載';
+        const ok = upsertGroundMatch(place,{date,category,opponent:venueOpponent,score,result});
         if(ok) venueLinked++; else unmatchedPlaces.add(place);
       }
+      if(!teamRaw){ skippedNoTeam++; continue; }
       const isInternal = matchTypeRaw==='internal' || matchTypeRaw==='チーム内' ||
         (isSiriusTeamName(teamRaw) && isSiriusTeamName(siriusTeam));
       if(isInternal){
@@ -727,7 +730,7 @@ function importRows(rows){
     renderList();
     persist();
     void saveUnmatchedOpponents().then(()=>autoRegisterUnmatchedOpponentsBatch());
-    console.info('GROUND_HISTORY_IMPORT_DIAG_SIMPLE_v1',{venueRows,venueLinked,unmatchedVenueCount:unmatchedPlaces.size,unmatchedVenueNames:[...unmatchedPlaces]});
+    console.info('GROUND_HISTORY_IMPORT_DIAG_SIMPLE_v2',{scannedRows,skippedNoTeam,placeColumnIndex:iPlace,venueRows,venueLinked,unmatchedVenueCount:unmatchedPlaces.size,unmatchedVenueNames:[...unmatchedPlaces]});
     let msg = `対外戦績 ${added}件登録`;
     if(dup) msg += `／重複${dup}件スキップ`;
     if(internalAdded || internalDup) msg += `／チーム内対戦 ${internalAdded}件追加・重複${internalDup}件`;
