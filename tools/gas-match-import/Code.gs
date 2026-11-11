@@ -26,6 +26,7 @@ function previewCsvJune2026() {
   const csvLines = [header.map(csvEscape_).join(',')];
   let parsedCount = 0;
   let parseFailureCount = 0;
+  let venueCapturedCount = 0;
 
   result.candidates.forEach(function(candidate) {
     const row = parseCandidateToCsvRow_(candidate);
@@ -34,6 +35,7 @@ function previewCsvJune2026() {
       return;
     }
     parsedCount++;
+    if (row.place) venueCapturedCount++;
     csvLines.push([
       row.team,
       row.date,
@@ -52,6 +54,7 @@ function previewCsvJune2026() {
   console.log('Candidate count: ' + result.candidates.length);
   console.log('CSV parse success: ' + parsedCount);
   console.log('CSV parse needs review: ' + parseFailureCount);
+  console.log('Candidates with venue: ' + venueCapturedCount);
   console.log('CSV columns: ' + header.join(','));
   console.log('CSV output (read-only preview):\n' + csvLines.join('\n'));
 }
