@@ -436,6 +436,12 @@ async function loadGroundsFromSheet(){
     };
   });
   rebuildGroundAliasIndex();
+  console.info('GROUND_LOOKUP_DIAG_v2',{
+    masterCount:Object.keys(grounds).length,
+    lookupIndexCount:Object.keys(groundAliasToName||{}).length,
+    masterNameLookupCount:Object.values(grounds).filter(g=>groundAliasToName[normalizeGroundLookupName(g.name)]===g.name).length,
+    lookupSamples:Object.values(grounds).slice(0,5).map(g=>({name:g.name,key:normalizeGroundLookupName(g.name),resolved:resolveGroundName(g.name)}))
+  });
   console.log('grounds loaded:',Object.keys(grounds).length,'source:',source,
     'map-enabled:',Object.values(grounds).filter(hasValidGroundCoordinates).length);
   if(skippedGroundRows.length) console.info('地図ピン対象外（座標未設定/不正または表示無効）:',skippedGroundRows);
