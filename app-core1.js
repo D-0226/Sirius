@@ -267,13 +267,21 @@ const GROUND_VERIFIED_INFO = {
 function normalizeGroundName(value){
   return String(value||'').normalize('NFKC').replace(/[\s\u3000]+/g,'').toLowerCase();
 }
+// 試合CSVの「○○にて（市町村） 人工芝」等の付加説明だけを除去する。
+// 会場名そのものの部分一致・地名推測は行わず、正規化後の完全一致だけで紐付ける。
+function normalizeGroundLookupName(value){
+  return normalizeGroundName(String(value||'')
+    .replace(/にて[（(][^）)]*[）)]/g,'')
+    .replace(/[（(](?:人工芝|天然芝)[）)]/g,'')
+    .replace(/(?:人工芝|天然芝)$/g,''));
+}
 let groundAliasToName = {};
 function rebuildGroundAliasIndex(){
   groundAliasToName = {};
   const aliasTargets = {};
   Object.values(grounds).forEach(g=>{
-    (Array.isArray(g.aliases)?g.aliases:[]).forEach(alias=>{
-      const key=normalizeGroundName(alias);
+    [g.name,...(Array.isArray(g.aliases)?g.aliases:[])].forEach(alias=>{
+      const key=normalizeGroundLookupName(alias);
       if(!key) return;
       (aliasTargets[key]||(aliasTargets[key]=new Set())).add(g.name);
     });
@@ -284,12 +292,10 @@ function rebuildGroundAliasIndex(){
   });
 }
 function resolveGroundName(value){
-  const key=normalizeGroundName(value);
+  const key=normalizeGroundLookupName(value);
   if(!key) return null;
-  const exact=Object.keys(grounds).filter(name=>normalizeGroundName(name)===key);
-  if(exact.length===1) return exact[0];
-  if(exact.length>1) return null;
-  return groundAliasToName[key]||null;
+  const targets=groundAliasToName[key];
+  return targets||null;
 }
 function hasValidGroundCoordinates(g){
   if(!g || g.displayEnabled===false) return false;
