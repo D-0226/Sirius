@@ -590,10 +590,10 @@ function upsertGroundMatch(placeName, info){
 /* ---------------- 未登録会場の検出と仮プロット ---------------- */
 // 座標はOSM/Nominatimの検索候補。マスタには書き込まず、確認用の仮ピンとしてのみ表示する。
 function rebuildGroundMatchLinksAndFindUnknowns(){
-  // 試合データの読み込み時に importRows() が upsertGroundMatch() で会場履歴を登録する。
-  // ここではチーム側の試合データを再走査し、読み込み順序に左右されず正式名・別名で再紐付けする。
-  Object.values(grounds).forEach(g=>{g.matches=[];});
-  unregisteredGroundCandidates={};
+  // importRows() はCSVの各行から会場履歴を直接 grounds[].matches に登録する。
+  // 既存チームデータは重複判定により place が補完されない場合があるため、
+  // points[].matches の再走査を理由に、CSVから登録済みの履歴を消去してはならない。
+  // 既存履歴・未登録候補を保持したまま、placeを持つチーム試合だけ追加補完する。
   let scanned=0,linked=0,unknown=0;
   (Array.isArray(points)?points:[]).forEach(p=>{
     (Array.isArray(p.matches)?p.matches:[]).forEach(m=>{
@@ -612,12 +612,15 @@ function rebuildGroundMatchLinksAndFindUnknowns(){
     });
   });
   const linkedGrounds=Object.values(grounds).filter(g=>g.matches.length>0);
+  const registeredMatchCount=linkedGrounds.reduce((sum,g)=>sum+g.matches.length,0);
   console.info('会場履歴の再紐付け:',{
     teamMatchesWithVenue:scanned,
     linkedMatchCount:linked,
     linkedGroundCount:linkedGrounds.length,
+    registeredMatchCount,
     unmatchedMatchCount:unknown,
-    samples:linkedGrounds.slice(0,5).map(g=>({ground:g.name,count:g.matches.length}))
+    unregisteredGroundCandidateCount:Object.keys(unregisteredGroundCandidates||{}).length,
+    samples:linkedGrounds.slice(0,8).map(g=>({ground:g.name,count:g.matches.length}))
   });
 }
 
