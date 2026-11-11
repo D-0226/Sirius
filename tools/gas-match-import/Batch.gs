@@ -505,7 +505,7 @@ function previewSiriusVenueBackfillBatch() {
       addIndex(legacyRows, legacyKey, i + 1);
     }
 
-    const counts = {pages:0,candidates:0,withVenue:0,parseFailures:0,internal:0,exact:0,legacyUnique:0,ambiguous:0,notFound:0};
+    const counts = {pages:0,candidates:0,withVenue:0,missingDate:0,parseFailures:0,internal:0,exact:0,legacyUnique:0,ambiguous:0,notFound:0};
     const samples = [];
     batch.forEach(function(page) {
       const fetched = fetchMatchCandidates_(page.url, page.year, page.month);
@@ -519,6 +519,7 @@ function previewSiriusVenueBackfillBatch() {
         if (!row) { counts.parseFailures++; return; }
         if (!row.place) return;
         counts.withVenue++;
+        if (!row.date) { counts.missingDate++; if (samples.length < 12) samples.push(page.year + '-' + ('0' + page.month).slice(-2) + ' 日付未取得 / ' + row.team + ' / ' + row.place); return; }
         if (isInternalSiriusMatch_(row.team)) { counts.internal++; return; }
         const exactKey = siriusExternalExactKey_(row);
         const exact = exactRows.get(exactKey) || [];
@@ -552,6 +553,10 @@ function previewSiriusVenueBackfillBatch() {
     console.log('既存シート列=' + headers.join(','));
     console.log('集計=' + JSON.stringify(counts));
     samples.forEach(function(s) { console.log('SAMPLE ' + s); });
+    if (counts.missingDate > 0) {
+      console.log('停止: 試合日が取得できない候補があります。カーソルは進めていません。日付解析を修正してから再実行してください。');
+      throw new Error('日付未取得=' + counts.missingDate + '。誤照合防止のためプレビューを停止しました。');
+    }
     props.setProperty('SIRIUS_VENUE_PREVIEW_CURSOR', String(start + batch.length));
     console.log('次回プレビュー開始位置=' + (start + batch.length));
     console.log('シートへの書き込み・既存データ変更は行っていません。');
@@ -571,4 +576,38 @@ function getSiriusBackfillSpreadsheet_() {
   const ss = id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) throw new Error('対象スプレッドシートが未設定です。');
   return ss;
+}
+
+
+/**
+ * 会場補完の最初の月別ページについて、日付見出しの実際の表記を確認する。
+ * 読み取り専用。HTMLの文字列行と候補の日付をログ出力する。
+ */
+function diagnoseSiriusVenueBackfillDates() {
+  const inventory = fetchMonthlyPageInventory_();
+  const page = inventory[0];
+  const response = UrlFetchApp.fetch(page.url, {
+    muteHttpExceptions: true,
+    followRedirects: true,
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SiriusMatchPreview/1.0)' }
+  });
+  const status = response.getResponseCode();
+  const lines = htmlToPlainText_(response.getContentText('Shift_JIS')).split('\\n')
+    .map(function(line) { return normalizeFullWidthDigits_(line).replace(/[\\t\\u00a0 ]+/g, ' ').trim(); })
+    .filter(function(line) { return line.length > 0; });
+  console.log('DATE DIAG page=' + page.year + '-' + ('0' + page.month).slice(-2) + ' URL=' + page.url + ' HTTP=' + status);
+  let printed = 0;
+  lines.forEach(function(line, index) {
+    if (!/(月|日|20\\d{2}[\\/.-]|\\d{1,2}[\\/.-]\\d{1,2})/.test(line)) return;
+    if (printed >= 50) return;
+    console.log('DATE LINE ' + (index + 1) + ': ' + line);
+    printed++;
+  });
+  const parsed = fetchMatchCandidates_(page.url, page.year, page.month);
+  console.log('候補=' + parsed.candidates.length + ' / 日付あり=' +
+    parsed.candidates.filter(function(c) { return !!c.date; }).length +
+    ' / 日付なし=' + parsed.candidates.filter(function(c) { return !c.date; }).length);
+  parsed.candidates.slice(0, 10).forEach(function(c, i) {
+    console.log('CANDIDATE ' + (i + 1) + ' date=' + c.date + ' category=' + c.category + ' text=' + c.text);
+  });
 }
