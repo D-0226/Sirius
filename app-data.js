@@ -587,7 +587,7 @@ function importRows(rows){
 
   if(header.includes('日付') && header.includes('FC名')){
     console.info('MATCH_CSV_IMPORT_DIAG_v2',{
-      rowCount:rows.length,headerIndex,placeColumnIndex:header.indexOf('場所'),
+      rowCount:rows.length,headerIndex:headerIdx,placeColumnIndex:header.indexOf('場所'),
       header,firstDataRow:rows[headerIdx+1]||null
     });
     // 元シート形式: 日付,開始時間,終了時間,場所,引率,TM名,カテゴリ,自チームスコア,相手チームスコア,得失点,勝敗,相手チーム名,備考,FC名
