@@ -1015,3 +1015,23 @@ function htmlToPlainText_(html) {
     })
     .replace(/\r/g, '');
 }
+
+/** 公式ページの日付見出し（●1月26日（日）等）の解析テスト。 */
+function testMatchDateHeaderPattern() {
+  const pattern = /(?:^|[●・\\s])\\s*(\\d{1,2})\\s*月\\s*(\\d{1,2})\\s*日/;
+  const cases = [
+    {line:'●1月26日（日）', month:'1', day:'26'},
+    {line:'・ 1月25日（土）', month:'1', day:'25'},
+    {line:'1月19日（日）', month:'1', day:'19'},
+    {line:'●12月31日（水）', month:'12', day:'31'}
+  ];
+  let passed = 0;
+  cases.forEach(function(c) {
+    const m = c.line.match(pattern);
+    const ok = !!m && m[1] === c.month && m[2] === c.day;
+    if (ok) passed++;
+    console.log((ok ? 'PASS' : 'FAIL') + ' ' + c.line + ' => ' + (m ? m[1] + '/' + m[2] : 'no match'));
+  });
+  console.log('DATE HEADER TEST: ' + passed + '/' + cases.length);
+  if (passed !== cases.length) throw new Error('日付見出し解析テスト失敗');
+}
