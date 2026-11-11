@@ -264,6 +264,47 @@ const GROUND_VERIFIED_INFO = {
 
 };
 
+function normalizeGroundName(value){
+  return String(value||'').normalize('NFKC').replace(/[\\s\\u3000]+/g,'').toLowerCase();
+}
+let groundAliasToName = {};
+function rebuildGroundAliasIndex(){
+  groundAliasToName = {};
+  const aliasTargets = {};
+  Object.values(grounds).forEach(g=>{
+    (Array.isArray(g.aliases)?g.aliases:[]).forEach(alias=>{
+      const key=normalizeGroundName(alias);
+      if(!key) return;
+      (aliasTargets[key]||(aliasTargets[key]=new Set())).add(g.name);
+    });
+  });
+  Object.entries(aliasTargets).forEach(([key,names])=>{
+    if(names.size===1) groundAliasToName[key]=[...names][0];
+    else console.warn('別名重複のため照合対象外:',key,[...names]);
+  });
+}
+function resolveGroundName(value){
+  const key=normalizeGroundName(value);
+  if(!key) return null;
+  const exact=Object.keys(grounds).filter(name=>normalizeGroundName(name)===key);
+  if(exact.length===1) return exact[0];
+  if(exact.length>1) return null;
+  return groundAliasToName[key]||null;
+}
+function hasValidGroundCoordinates(g){
+  if(!g || g.displayEnabled===false) return false;
+  if(g.lat===null || g.lat===undefined || g.lat==='' ||
+     g.lng===null || g.lng===undefined || g.lng==='') return false;
+  const lat=Number(g.lat),lng=Number(g.lng);
+  return Number.isFinite(lat)&&Number.isFinite(lng)&&
+    lat>=-90&&lat<=90&&lng>=-180&&lng<=180;
+}
+function parseGroundDisplayEnabled(value){
+  if(value===false) return false;
+  const v=String(value==null?'':value).trim().toUpperCase();
+  return !(v==='FALSE'||v==='0'||v==='NO');
+}
+
 let grounds = {};        // name -> {name, address, lat, lng, accuracy, mapUrl, sourceUrl, updatedAt, matches:[]}
 let groundMarkers = {};  // name -> leaflet marker
 let unregisteredGroundCandidates = {}; // 試合データにはあるが、会場マスタにない会場名
@@ -313,11 +354,8 @@ async function loadGroundsFromSheet(){
   let source='ground-master API';
   try{
     const master=await fetchGroundMasterJsonp();
-    if(master.length){
-      sourceRows=master;
-    }else{
-      throw new Error('ground-master API returned no rows');
-    }
+    if(master.length) sourceRows=master;
+    else throw new Error('ground-master API returned no rows');
   }catch(apiError){
     console.warn('確定会場マスターAPIを取得できないため、従来CSVへフォールバックします。',apiError);
     try{
@@ -333,9 +371,10 @@ async function loadGroundsFromSheet(){
       const iAccuracy=idx('accuracy'),iMap=idx('map_url'),iSource=idx('source_url'),iUpdated=idx('updated_at');
       if(iGround<0||iLat<0||iLng<0) throw new Error('ground / lat / lng が不足しています');
       sourceRows=rows.slice(headerIdx+1).map(r=>({
-        ground:r[iGround],address:iAddress>=0?r[iAddress]:'',lat:r[iLat],lng:r[iLng],
-        accuracy:iAccuracy>=0?r[iAccuracy]:'',mapUrl:iMap>=0?r[iMap]:'',
-        sourceUrl:iSource>=0?r[iSource]:'',updatedAt:iUpdated>=0?r[iUpdated]:''
+        ground:r[iGround],address:iAddress>=0?r[iAddress]:'',lat:iLat>=0?r[iLat]:'',
+        lng:iLng>=0?r[iLng]:'',accuracy:iAccuracy>=0?r[iAccuracy]:'',
+        mapUrl:iMap>=0?r[iMap]:'',sourceUrl:iSource>=0?r[iSource]:'',
+        updatedAt:iUpdated>=0?r[iUpdated]:'',aliases:[],displayEnabled:true
       }));
       source='legacy CSV fallback';
     }catch(csvError){
@@ -346,35 +385,54 @@ async function loadGroundsFromSheet(){
   }
 
   grounds={};
-  const skippedGroundRows=[];
-  const duplicateGroundNames=[];
+  const skippedGroundRows=[],duplicateGroundNames=[];
   sourceRows.forEach((item,index)=>{
-    const name=String(item.ground||item.name||'').trim();
+    const name=String(item.ground||item.name||item.officialName||'').trim();
     if(!name) return;
-    const rawLat=String(item.lat??'').trim(),rawLng=String(item.lng??'').trim();
-    const lat=Number(rawLat),lng=Number(rawLng);
-    if(!Number.isFinite(lat)||!Number.isFinite(lng)){
-      skippedGroundRows.push({name,lat:rawLat,lng:rawLng,row:index+2});
-      return;
-    }
     if(grounds[name]) duplicateGroundNames.push({name,row:index+2});
     const verified=GROUND_VERIFIED_INFO[name]||{};
+    const rawLat=item.lat,rawLng=item.lng;
+    const parsedLat=rawLat===null||rawLat===undefined||String(rawLat).trim()===''?null:Number(rawLat);
+    const parsedLng=rawLng===null||rawLng===undefined||String(rawLng).trim()===''?null:Number(rawLng);
+    const lat=Number.isFinite(parsedLat)?parsedLat:null;
+    const lng=Number.isFinite(parsedLng)?parsedLng:null;
+    const finalLat=Number.isFinite(verified.lat)?verified.lat:lat;
+    const finalLng=Number.isFinite(verified.lng)?verified.lng:lng;
+    if(finalLat===null||finalLng===null){
+      skippedGroundRows.push({name,lat:rawLat,lng:rawLng,displayEnabled:item.displayEnabled});
+    }
+    const rawAliases=Array.isArray(item.aliases)?item.aliases:
+      (typeof item.aliases==='string'?item.aliases.split(/[;,、]/):[]);
     grounds[name]={
       name,
+      groundId:String(item.groundId||item.ground_id||'').trim(),
+      officialName:String(item.officialName||item.official_name||name).trim(),
+      aliases:rawAliases.map(v=>String(v||'').trim()).filter(Boolean),
+      venueType:String(item.venueType||item.venue_type||'').trim(),
+      masterStatus:String(item.masterStatus||item.master_status||'').trim(),
+      displayEnabled:item.displayEnabled===undefined&&item.display_enabled===undefined
+        ? true : parseGroundDisplayEnabled(item.displayEnabled!==undefined?item.displayEnabled:item.display_enabled),
+      coordinateStatus:String(item.coordinateStatus||item.coordinate_status||'').trim(),
+      plusCode:String(item.plusCode||item.plus_code||'').trim(),
       address:verified.address||String(item.address||'').trim(),
-      lat:Number.isFinite(verified.lat)?verified.lat:lat,
-      lng:Number.isFinite(verified.lng)?verified.lng:lng,
+      lat:finalLat,lng:finalLng,
       accuracy:verified.accuracy||String(item.accuracy||'').trim(),
       mapUrl:String(item.mapUrl||item.map_url||'').trim(),
       sourceUrl:verified.sourceUrl||String(item.sourceUrl||item.source_url||'').trim(),
       updatedAt:verified.verifiedAt||String(item.updatedAt||item.updated_at||'').trim(),
-      parking:verified.parking||'',toilet:verified.toilet||'',access:verified.access||'',
-      facilities:verified.facilities||'',spectator:verified.spectator||'',caution:verified.caution||'',
+      parking:verified.parking||String(item.parking||'').trim(),
+      toilet:verified.toilet||String(item.toilet||'').trim(),
+      access:verified.access||String(item.access||'').trim(),
+      facilities:verified.facilities||String(item.facilities||'').trim(),
+      spectator:verified.spectator||String(item.spectator||'').trim(),
+      caution:verified.caution||String(item.caution||'').trim(),
       matches:[]
     };
   });
-  console.log('grounds loaded:',Object.keys(grounds).length,'source:',source);
-  if(skippedGroundRows.length) console.warn('グラウンド地図未プロット（緯度・経度未設定/不正）:',skippedGroundRows);
+  rebuildGroundAliasIndex();
+  console.log('grounds loaded:',Object.keys(grounds).length,'source:',source,
+    'map-enabled:',Object.values(grounds).filter(hasValidGroundCoordinates).length);
+  if(skippedGroundRows.length) console.info('地図ピン対象外（座標未設定/不正または表示無効）:',skippedGroundRows);
   if(duplicateGroundNames.length) console.warn('グラウンドマスタの重複名:',duplicateGroundNames);
   return Object.keys(grounds).length>0;
 }
@@ -495,6 +553,7 @@ function focusGroundLabel(name){
   }
 }
 function renderGroundMarker(g){
+  if(!hasValidGroundCoordinates(g)) return;
   const marker = L.marker([g.lat, g.lng], { icon: groundIcon(), riseOnHover:true, autoPanOnFocus:true });
   marker.setOpacity(groundMarkerOpacity(g));
   marker.bindPopup(groundPopupHtml(g), { maxWidth: 340, minWidth: 250, className:'ground-popup', autoPan:true, autoPanPaddingTopLeft:[12,72], autoPanPaddingBottomRight:[12,24] });
@@ -512,40 +571,37 @@ function renderGroundMarker(g){
 }
 
 function upsertGroundMatch(placeName, info){
-  const g = grounds[placeName];
+  const canonicalName=resolveGroundName(placeName);
+  const g=canonicalName?grounds[canonicalName]:null;
   if(!g){
     const name=String(placeName||'').trim();
     if(name){
       const item=unregisteredGroundCandidates[name]||(unregisteredGroundCandidates[name]={name,matches:[]});
-      if(info && !item.matches.some(m=>m.date===info.date&&m.opponent===info.opponent&&m.score===info.score)) item.matches.push(info);
+      if(info&&!item.matches.some(m=>m.date===info.date&&m.opponent===info.opponent&&m.score===info.score)) item.matches.push(info);
     }
     return false;
   }
-  const key = [info.date, info.opponent, info.score, info.result].join('|');
-  if(g.matches.some(m => [m.date,m.opponent,m.score,m.result].join('|') === key)) return true;
+  const key=[info.date,info.opponent,info.score,info.result].join('|');
+  if(g.matches.some(m=>[m.date,m.opponent,m.score,m.result].join('|')===key)) return true;
   g.matches.push(info);
   return true;
 }
 
-
 /* ---------------- 未登録会場の検出と仮プロット ---------------- */
 // 座標はOSM/Nominatimの検索候補。マスタには書き込まず、確認用の仮ピンとしてのみ表示する。
 function rebuildGroundMatchLinksAndFindUnknowns(){
-  unregisteredGroundCandidates = {};
-  Object.values(grounds).forEach(g=>{ g.matches=[]; });
+  unregisteredGroundCandidates={};
+  Object.values(grounds).forEach(g=>{g.matches=[];});
   (Array.isArray(points)?points:[]).forEach(p=>{
     (Array.isArray(p.matches)?p.matches:[]).forEach(m=>{
       const place=String(m.place||m.venue||m.ground||'').trim();
       if(!place) return;
       const info={date:m.date||'',category:m.category||'',opponent:p.name||'',score:m.score||'',result:m.result||''};
-      if(grounds[place]) upsertGroundMatch(place,info);
-      else upsertGroundMatch(place,info);
+      upsertGroundMatch(place,info);
     });
   });
 }
 function addUpcomingGroundCandidates(matches){
-  const normalize=value=>String(value||'').normalize('NFKC').replace(/[\\s\\u3000]+/g,'').toLowerCase();
-  const knownNames=Object.keys(grounds).map(normalize);
   let scanned=0;
   (Array.isArray(matches)?matches:[]).forEach(match=>{
     const venue=[match.venue,match.groundName,match.ground,match.location,match.place,match.field,match.stadium,match.会場,match.グラウンド]
@@ -553,7 +609,7 @@ function addUpcomingGroundCandidates(matches){
     const name=String(venue||'').trim();
     if(!name) return;
     scanned++;
-    if(knownNames.some(known=>known===normalize(name)||known.includes(normalize(name))||normalize(name).includes(known))) return;
+    if(resolveGroundName(name)) return;
     const item=unregisteredGroundCandidates[name]||(unregisteredGroundCandidates[name]={name,matches:[]});
     const info={date:match.date||'',category:match.category||'',opponent:match.title||match.name||'',score:'',result:''};
     if(!item.matches.some(m=>m.date===info.date&&m.category===info.category&&m.opponent===info.opponent)) item.matches.push(info);
@@ -562,45 +618,38 @@ function addUpcomingGroundCandidates(matches){
   return scanned;
 }
 
+
+
 async function discoverUnregisteredGroundsFromPublishedCsv(){
-  if(typeof ALL_GRADES_CSV_URL==='undefined' || typeof parseCSV!=='function') return {ok:false,reason:'試合CSV設定がありません'};
+  if(typeof ALL_GRADES_CSV_URL==='undefined'||typeof parseCSV!=='function') return {ok:false,reason:'試合CSV設定がありません'};
   try{
     const response=await fetch(ALL_GRADES_CSV_URL,{cache:'no-store'});
     if(!response.ok) throw new Error('CSV HTTP '+response.status);
     const rows=parseCSV(await response.text());
     const headerIndex=rows.findIndex(row=>
-      (row.includes('日付')&&row.includes('FC名')) ||
+      (row.includes('日付')&&row.includes('FC名'))||
       ((row.includes('team')||row.includes('チーム名'))&&(row.includes('date')||row.includes('日付')))
     );
     if(headerIndex<0) throw new Error('会場検出用のヘッダー行が見つかりません');
     const header=rows[headerIndex].map(v=>String(v||'').trim());
-    const index=(names)=>names.map(name=>header.indexOf(name)).find(i=>i>=0)??-1;
-    const venueIndex=header.includes('日付')&&header.includes('FC名')
-      ? header.indexOf('場所')
-      : index(['place','venue','ground','場所','会場','グラウンド']);
-    const teamIndex=header.includes('日付')&&header.includes('FC名')
-      ? header.indexOf('FC名')
-      : index(['team','チーム名']);
+    const index=names=>names.map(name=>header.indexOf(name)).find(i=>i>=0)??-1;
+    const venueIndex=header.includes('日付')&&header.includes('FC名')?header.indexOf('場所'):index(['place','venue','ground','場所','会場','グラウンド']);
+    const teamIndex=header.includes('日付')&&header.includes('FC名')?header.indexOf('FC名'):index(['team','チーム名']);
     const dateIndex=header.includes('日付')&&header.includes('FC名')?header.indexOf('日付'):index(['date','日付']);
     const categoryIndex=header.includes('日付')&&header.includes('FC名')?header.indexOf('カテゴリ'):index(['category','カテゴリ']);
-    if(venueIndex<0){
-      console.warn('未登録会場の自動検出: 試合CSVに会場列がありません。ヘッダー:',header);
-      return {ok:true,venueColumn:false,rows:Math.max(0,rows.length-headerIndex-1),uniqueVenues:0,unknown:0};
-    }
-    const norm=value=>String(value||'').normalize('NFKC').replace(/[\\s\\u3000]+/g,'').toLowerCase();
-    const masterNames=new Set(Object.keys(grounds).map(norm));
+    if(venueIndex<0) return {ok:true,venueColumn:false,rows:Math.max(0,rows.length-headerIndex-1),uniqueVenues:0,unknown:0};
     let scanned=0;
     for(let i=headerIndex+1;i<rows.length;i++){
-      const row=rows[i]||[];
-      const name=String(row[venueIndex]||'').trim();
+      const row=rows[i]||[],name=String(row[venueIndex]||'').trim();
       if(!name) continue;
       scanned++;
-      if(masterNames.has(norm(name))) continue;
+      if(resolveGroundName(name)) continue;
       const candidate=unregisteredGroundCandidates[name]||(unregisteredGroundCandidates[name]={name,matches:[]});
       const sample={date:dateIndex>=0?String(row[dateIndex]||''):'',category:categoryIndex>=0?String(row[categoryIndex]||''):'',opponent:teamIndex>=0?String(row[teamIndex]||''):'',score:'',result:''};
       if(!candidate.matches.some(m=>m.date===sample.date&&m.category===sample.category&&m.opponent===sample.opponent)) candidate.matches.push(sample);
     }
-    const result={ok:true,venueColumn:true,venueRows:scanned,uniqueVenues:new Set(rows.slice(headerIndex+1).map(row=>String((row||[])[venueIndex]||'').trim()).filter(Boolean)).size,unknown:Object.keys(unregisteredGroundCandidates).length};
+    const uniqueVenues=new Set(rows.slice(headerIndex+1).map(row=>String((row||[])[venueIndex]||'').trim()).filter(Boolean)).size;
+    const result={ok:true,venueColumn:true,venueRows:scanned,uniqueVenues,unknown:Object.keys(unregisteredGroundCandidates).length};
     console.info('公開試合CSVからの未登録会場検出:',result);
     return result;
   }catch(error){
@@ -609,75 +658,49 @@ async function discoverUnregisteredGroundsFromPublishedCsv(){
   }
 }
 
+
+
 function provisionalGroundIcon(){
   return L.divIcon({className:'',html:'<div style="width:27px;height:27px;border-radius:50%;background:#D97706;border:2px dashed #fff;box-shadow:0 1px 4px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:14px;">?</div>',iconSize:[27,27],iconAnchor:[13,13]});
 }
 async function plotUnregisteredGroundCandidates(maxSearches=15){
-  // 未登録会場は、住所等を照合して人が「確認済み」にした座標だけを地図表示する。
-  // 「要確認」「未調査」「未取得」等の座標は仮ピンにも使用しない。
   Object.values(provisionalGroundMarkers).forEach(marker=>map.removeLayer(marker));
   provisionalGroundMarkers={};
-
-  if(typeof loadSiriusGroundCatalog==='function' && !siriusGroundCatalogLoaded){
-    await loadSiriusGroundCatalog();
-  }
-  const catalog = Array.isArray(siriusGroundCatalog) ? siriusGroundCatalog : [];
-  const normalize = value => String(value||'').normalize('NFKC').replace(/[\\s\\u3000]+/g,'').toLowerCase();
-  const candidates = Object.values(unregisteredGroundCandidates)
-    .filter(item=>!Object.keys(grounds).some(name=>normalize(name)===normalize(item.name)))
+  if(typeof loadSiriusGroundCatalog==='function'&&!siriusGroundCatalogLoaded) await loadSiriusGroundCatalog();
+  const catalog=Array.isArray(siriusGroundCatalog)?siriusGroundCatalog:[];
+  const candidates=Object.values(unregisteredGroundCandidates)
+    .filter(item=>!resolveGroundName(item.name))
     .sort((a,b)=>(b.matches||[]).length-(a.matches||[]).length);
-
-  if(!candidates.length){
-    console.info('未登録会場: 0件（既存会場マスタとの照合結果）');
-    return;
-  }
-  if(!catalog.length){
-    console.warn('会場カタログが取得できないため、未登録会場の表示を保留しました。');
-    return;
-  }
-
-  let plotted=0, unresolved=[], unverified=[];
-  const limit=Math.max(0,Number(maxSearches)||0);
-  const selected=candidates.slice(0,limit);
+  if(!candidates.length){console.info('未登録会場: 0件（正式名・別名照合結果）');return;}
+  if(!catalog.length){console.warn('会場カタログが取得できないため、未登録会場の表示を保留しました。');return;}
+  let plotted=0,unresolved=[],unverified=[];
+  const limit=Math.max(0,Number(maxSearches)||0),selected=candidates.slice(0,limit);
   for(const item of selected){
-    const target=normalize(item.name);
-    let matches=catalog.filter(g=>normalize(g.ground)===target);
-    if(matches.length!==1){
-      const fuzzy=catalog.filter(g=>{
-        const name=normalize(g.ground);
-        return name.length>=4 && target.length>=4 && (name.includes(target)||target.includes(name));
-      });
-      if(fuzzy.length===1) matches=fuzzy;
+    const target=normalizeGroundName(item.name);
+    const matches=catalog.filter(g=>normalizeGroundName(g.ground)===target);
+    const entry=matches.length===1?matches[0]:null;
+    const status=String(entry&&entry.geoStatus||'未調査').trim();
+    const lat=entry?Number(entry.lat):NaN,lng=entry?Number(entry.lng):NaN;
+    if(!entry||entry.lat===null||entry.lat===''||entry.lng===null||entry.lng===''||!Number.isFinite(lat)||!Number.isFinite(lng)){
+      unresolved.push(item.name);continue;
     }
-    const entry=matches.length===1 ? matches[0] : null;
-    const status=String(entry && entry.geoStatus || '未調査').trim();
-    const lat=entry ? Number(entry.lat) : NaN;
-    const lng=entry ? Number(entry.lng) : NaN;
-    if(!entry || entry.lat===null || entry.lat==='' || entry.lng===null || entry.lng==='' || !Number.isFinite(lat) || !Number.isFinite(lng)){
-      unresolved.push(item.name);
-      continue;
-    }
-    // 人が座標を確認して「確認済み」と明示した行だけを表示対象にする。
-    if(status!=='確認済み'){
-      unverified.push({name:item.name,status});
-      continue;
-    }
+    if(status!=='確認済み'){unverified.push({name:item.name,status});continue;}
     const marker=L.marker([lat,lng],{icon:provisionalGroundIcon(),riseOnHover:true});
-    const address=String(entry.address||'').trim();
-    const mapQuery=address || item.name;
+    const address=String(entry.address||'').trim(),mapQuery=address||item.name;
     const mapSearch='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(mapQuery);
-    const sourceUrls=Array.isArray(entry.sourceUrls) ? entry.sourceUrls : [];
+    const sourceUrls=Array.isArray(entry.sourceUrls)?entry.sourceUrls:[];
     const sourceLinks=sourceUrls.slice(0,3).map(url=>'<div style="font-size:10px;margin-top:3px"><a href="'+escapeHtml(url)+'" target="_blank" rel="noopener noreferrer">公式出典ページ ↗</a></div>').join('');
     marker.bindPopup('<b>✓ 会場カタログ（座標確認済み）</b><div style="margin-top:5px;font-weight:600;">'+escapeHtml(item.name)+'</div>'+(address?'<div style="font-size:11px;margin-top:4px;">住所：'+escapeHtml(address)+'</div>':'')+'<div style="font-size:11px;margin-top:5px;">試合データでの登場 '+item.matches.length+'件</div><div style="font-size:11px;color:#166534;margin-top:5px;">座標状態：確認済み</div><div style="font-size:11px;margin-top:4px;">出典登録 '+Number(entry.sourceCount||0)+'件</div>'+sourceLinks+'<div style="margin-top:6px"><a href="'+mapSearch+'" target="_blank" rel="noopener noreferrer">住所をGoogleマップで確認</a></div>',{maxWidth:320});
     marker.bindTooltip(item.name+'［座標確認済み］',{permanent:true,direction:'top',offset:[0,-10],className:'name-label'});
     if(groundsVisible) marker.addTo(map);
-    provisionalGroundMarkers[item.name]=marker;
-    plotted++;
+    provisionalGroundMarkers[item.name]=marker;plotted++;
   }
   console.info('会場カタログによる未登録会場の表示結果:',{detected:candidates.length,checked:selected.length,plotted,unresolved,unverified,limit});
-  if(plotted && typeof scheduleGroundCenter==='function') scheduleGroundCenter();
+  if(plotted&&typeof scheduleGroundCenter==='function') scheduleGroundCenter();
   if(candidates.length>limit) console.info('今回の表示対象外の未登録会場:',candidates.length-limit);
 }
+
+
 
 function refreshGroundMarkers(){
   Object.values(groundMarkers).forEach(m=> map.removeLayer(m));
