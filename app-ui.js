@@ -255,8 +255,10 @@ function renderInitialMarkersInBatches(list, batchSize=24){
   }
 
   try{
-    const [groundsOk, liveOk] = await Promise.all([
-      loadGroundsFromSheet(),
+    // 会場マスタを先に確定し、その後に試合CSVを取り込む。
+    // 並列取得だと試合CSVが先に完了して、会場マスタ未読込のまま履歴が未登録扱いになるため順序を固定する。
+    const groundsOk = await loadGroundsFromSheet();
+    const [liveOk] = await Promise.all([
       loadMatchesFromSheet({silent:true}),
       loadGroundMemosFromSheet(),
       loadSiriusGroundCatalog(),
