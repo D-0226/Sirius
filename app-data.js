@@ -675,6 +675,7 @@ function importRows(rows){
     const iPlace = ['place','venue','ground','場所','会場','グラウンド','試合会場','会場名'].map(k=>col(k)).find(i=>i>=0) ?? -1;
     let added=0, dup=0, noTeam=0, internalAdded=0, internalDup=0, venueRows=0, venueLinked=0, scannedRows=0, skippedNoTeam=0;
     const unmatched = new Set(), unmatchedPlaces = new Set();
+    const venueNameStats = new Map();
     const touched = new Set();
     const existingKeys = new Set();
     console.info('MATCH_CSV_SIMPLE_SCHEMA_DIAG_v1',{headerIndex:headerIdx,header,columns:{team:iTeam,date:iDate,place:iPlace,category:iCat,score:iScore,result:iRes,siriusTeam:iSiriusTeam},rowCount:rows.length,firstRows:rows.slice(headerIdx+1,headerIdx+4)});
@@ -693,6 +694,15 @@ function importRows(rows){
       const pkScore = String(iPkScore>=0 && r[iPkScore]!=null?r[iPkScore]:'').trim();
       const matchTypeRaw = String(iMatchType>=0 && r[iMatchType]!=null?r[iMatchType]:'').trim().toLowerCase();
       const place = String(iPlace>=0 && r[iPlace]!=null?r[iPlace]:'').trim();
+      // 会場名ごとの出現件数とマスター照合先を記録（診断専用・データ変更なし）。
+      if(place){
+        const canonicalGround = typeof resolveGroundName==='function' ? resolveGroundName(place) : null;
+        const venueStat = venueNameStats.get(place) || {rows:0,canonicalGround:canonicalGround||'',matchedRows:0,unmatchedRows:0};
+        venueStat.rows++;
+        if(canonicalGround){ venueStat.canonicalGround=canonicalGround; venueStat.matchedRows++; }
+        else venueStat.unmatchedRows++;
+        venueNameStats.set(place,venueStat);
+      }
       // 会場列を先に処理し、チーム名が空欄の行でも履歴を取りこぼさない。
       if(place){
         venueRows++;
@@ -730,7 +740,11 @@ function importRows(rows){
     renderList();
     persist();
     void saveUnmatchedOpponents().then(()=>autoRegisterUnmatchedOpponentsBatch());
-    console.info('GROUND_HISTORY_IMPORT_DIAG_SIMPLE_v2',{scannedRows,skippedNoTeam,placeColumnIndex:iPlace,venueRows,venueLinked,unmatchedVenueCount:unmatchedPlaces.size,unmatchedVenueNames:[...unmatchedPlaces]});
+    const venueNameReport=[...venueNameStats.entries()].map(([name,stat])=>({name,rows:stat.rows,canonicalGround:stat.canonicalGround,matchedRows:stat.matchedRows,unmatchedRows:stat.unmatchedRows,status:stat.unmatchedRows===0?'matched':stat.matchedRows===0?'unmatched':'mixed'})).sort((a,b)=>b.rows-a.rows||a.name.localeCompare(b.name,'ja'));
+    const venueAudit={scannedRows,skippedNoTeam,placeColumnIndex:iPlace,venueRows,venueLinked,uniqueVenueNames:venueNameReport.length,matchedUniqueVenueNames:venueNameReport.filter(x=>x.status==='matched').length,unmatchedUniqueVenueNames:venueNameReport.filter(x=>x.status!=='matched').length,unmatchedVenueCount:unmatchedPlaces.size,unmatchedVenueNames:[...unmatchedPlaces],venueNameReport};
+    // ブラウザConsoleから全会場名・出現件数・照合先をコピーできるようにする。読み取り専用。
+    window.SIRIUS_GROUND_VENUE_AUDIT=venueAudit;
+    console.info('GROUND_HISTORY_IMPORT_DIAG_SIMPLE_v3',venueAudit);
     let msg = `対外戦績 ${added}件登録`;
     if(dup) msg += `／重複${dup}件スキップ`;
     if(internalAdded || internalDup) msg += `／チーム内対戦 ${internalAdded}件追加・重複${internalDup}件`;
